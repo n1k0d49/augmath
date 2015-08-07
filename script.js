@@ -669,6 +669,7 @@ function parse_poly(root, poly, parent_id, is_container) {
 function prepare(math) {
 
 	math = math.replace(/\\frac{}/g, "\\frac{1}")
+				.replace(/\\frac{([ -~]+)}{}/g, "$1")
 				.replace(/=$/, "=0")
 				.replace(/^=/, "0=")
 				.replace(/\^{}/g, "")
@@ -776,9 +777,13 @@ function change_side() {
 				prepare(new_math_str);
 			});
 		}
-	} else if (selected_nodes[0].parent.type === "nominator" 
-		|| selected_nodes[0].type === "factor" 
-		|| selected_nodes[0].type === "nominator") {
+	} else if ((selected_nodes[0].parent.type === "nominator" 
+			|| selected_nodes[0].type === "factor" 
+			|| selected_nodes[0].type === "nominator") 
+			&& (($selected.prevAll(".mrel").length !== 0 
+					&& get_prev([math_root.children[math_root.children.length-1]]).children[0].type === "rel")
+				|| ($selected.prevAll(".mrel").length === 0 
+					&& get_next([math_root.children[0]]).children[0].type === "rel"))) {
 		if (selected_nodes[0].model.id.split("/")[1] < equals_node.model.id.split("/")[1]) { //before eq sign
 			RHS_width = tot_width($equals.nextAll(), false, false);
 			var after_eq = false, after_eq_nodes=[];
@@ -992,6 +997,7 @@ function move_left() {
 	}
 }
 
+//move up and down in a fraction
 document.getElementById("move_up").onclick = function() {
 	move_up();
 	if (recording) {
@@ -1102,51 +1108,98 @@ function move_down() {
 	}
 }
 
-//split fraction.
-document.getElementById("push").onclick = function() {
-	push();
+//splitting stuff
+document.getElementById("split").onclick = function() {
+	split();
 	if (recording) {
-		manipulation_rec.push({manipulation:8});
+		manipulation_rec.split({manipulation:8});
 	}
 };
-function push() {
-	if (selected_nodes[0].type2 === "fraction") {
-		//ANIMATION? SHOULD CLONE THE DENOMINATOR AND MOVE TO THE RIGHT PLACES
-		var new_term="";
-		for (var i=0; i<selected_nodes[0].children[0].children.length; i++) {
-			new_term += "+" + "\\frac{" + selected_nodes[0].children[0].children[i].text + "}{" + selected_nodes[0].children[1].text + "}";
+function split() {
+	var same_factor = true, same_grandparents = true, same_type2 = true, 
+		same_parents = true, same_type = true, same_ggparents = true;
+	var factor_text = [], bool = false, j = 0;
+	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all factos are the same
+		if (bool) {
+			if (selected_nodes[i].text !== factor_text[j]) {same_factor = false}
+			j++;
+		} else {
+			factor_text.push(selected_nodes[i].text);
 		}
-		var parent = math_root.first(function (node) {
-	    	for (var j=0; j<node.children.length; j++) {
-	    		if (node.children[j].model.id === selected_nodes[0].model.id) {
-	    			return true;
-	    		}
-	    	}
-		});
-		if (parent.type === "term") {
-			new_term = "(" + new_term + ")";
+		if (selected_nodes[i].parent !== selected_nodes[i+1].parent) {bool = true; j = 0;}
+	}
+	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same grandparent
+		if (selected_nodes[i].parent.parent !== selected_nodes[i+1].parent.parent) {same_grandparents = false}
+	}
+	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same greatgrandparent
+		if (selected_nodes[i].parent.parent.parent !== selected_nodes[i+1].parent.parent.parent) {same_ggparents = false}
+	}
+	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same type2
+		if (selected_nodes[i].type2 !== selected_nodes[i+1].type2) {same_type2 = false}
+	}
+	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same parent
+		if (selected_nodes[i].parent !== selected_nodes[i+1].parent) {same_parents = false}
+	}
+	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same type
+		if (selected_nodes[i].type !== selected_nodes[i+1].type) {same_type = false}
+	}
+	if (selected_nodes[0].type === "factor" && same_type && same_parents) { //distribute in
+		var grouped = [];
+		var factors_text = "";
+		for (var i=0; i<selected_nodes.length; i++) {//making sure all elemnts are of the same type
+			if (selected_nodes[i].type2 === "group") {
+				grouped.push(selected_nodes[i]);
+			} else {
+				factors_text+=selected_nodes[i].text;
+			}
 		}
-		new_math_str = replace_in_mtstr(selected_nodes, new_term);
-		current_index++;
-		prepare(new_math_str);
-	} else if (selected_nodes[0].type2 === "normal") {
+		if (grouped.length === 1) {
+			var grouped_node = grouped[0];
+		} else {
+			return;
+		}
 		$selected.animate({"font-size": 0, opacity: 0}, step_duration) //IMPROVE ANIMATION (FOR EXAMPLE CLONE)
 	    .css('overflow', 'visible')
 	    .promise()
 	    .done(function() {
-	    	var next_node = get_next(selected_nodes);
 	    	var text = "";
-	    	for (var i=0; i<next_node.children.length; i++) {
-	    		if (next_node.children[i].text.search(/[+-]/) === 0) {
-	    			text += next_node.children[i].text.slice(0, 1) + selected_text + next_node.children[i].text.slice(1, next_node.children[i].text.length);
+	    	for (var i=0; i<grouped_node.children.length; i++) {
+	    		if (grouped_node.children[i].text.search(/[+-]/) === 0) {
+	    			text += grouped_node.children[i].text.slice(0, 1) + factors_text + grouped_node.children[i].text.slice(1, grouped_node.children[i].text.length);
 	    		} else {
-	    			text += selected_text + next_node.children[i].text;
+	    			text += factors_text + grouped_node.children[i].text;
 	    		}
 	    	}
-	  		new_math_str = replace_in_mtstr(selected_nodes.concat(next_node), "(" + text + ")");
+	  		new_math_str = replace_in_mtstr(selected_nodes, "(" + text + ")");
 	  		current_index++;
 			prepare(new_math_str);
 	  	});
+	} else if (selected_nodes[0].type2 === "frac" && same_type2) { //split fractions into terms
+		//ANIMATION? SHOULD CLONE THE DENOMINATOR AND MOVE TO THE RIGHT PLACES
+		var new_terms = [];
+		for (var i=0; i<selected_nodes.length; i++) {
+			if (selected_nodes[i].children[0].length > 1) {
+				var new_term="";
+				for (var j=0; j<selected_nodes[i].children[0].children.length; j++) {
+					new_term += "+" + "\\frac{" + selected_nodes[i].children[0].children[j].text + "}{" + selected_nodes[i].children[1].text + "}";
+				}
+				var parent = math_root.first(function (node) {
+			    	for (var j=0; j<node.children.length; j++) {
+			    		if (node.children[j].model.id === selected_nodes[i].model.id) {
+			    			return true;
+			    		}
+			    	}
+				});
+				if (parent.type === "term") {
+					new_terms.push("(" + new_term + ")");
+				}
+			} else {
+				new_terms.push(selected_nodes[i].text);
+			}
+		}
+		new_math_str = replace_in_mtstr(selected_nodes, new_terms);
+		prepare(new_math_str);
+		current_index++;
 	} else if (selected_nodes[0].type2 === "sqrt" && selected_nodes[0].children.length === 1) {
 		//ANIMATION??
 		var factors = selected_nodes[0].children[0].children;
@@ -1156,19 +1209,99 @@ function push() {
 	    	}
 		new_math_str = replace_in_mtstr(selected_nodes, text);
 		current_index++;
-		prepare(new_math_str);
+		prepare(new_math_str); //split square root. Need to make it work with fractions
+	} else if (selected_nodes[i].children[0] !== undefined && selected_nodes.length === 1  && selected_nodes[0].children[0].children.length === 1 
+		&& (selected_nodes[0].type2 === "exp" || selected_nodes[0].type2 === "group_exp")) {
+		//ANIMATION?
+		var power_text = selected_nodes[0].children[1].text;
+		var text = ""
+		var base_factors = selected_nodes[0].children[0].children[0].children;
+		for (var i=0; i<base_factors.length; i++) {
+			text+=base_factors[i].text + "^{" + power_text + "}";
+		}
+		new_math_str = replace_in_mtstr(selected_nodes, text);
+		current_index++;
+		prepare(new_math_str); // //distribute power in
+	} else if (selected_nodes.length === 1  && selected_nodes[0].children.length > 1 
+		&& selected_nodes[0].type === "power") {
+		//ANIMATION?
+		var base_text;
+		if (selected_nodes[0].parent.children[0].children.length === 1 && selected_nodes[0].parent.children[0].children[0].children.length === 1) {
+			base_text = selected_nodes[0].parent.children[0].text;
+		} else {
+			base_text = "(" + selected_nodes[0].parent.children[0].text + ")";
+		}
+		var text = ""
+		var power_terms = selected_nodes[0].children;
+		for (var i=0; i<power_terms.length; i++) {
+			text+=base_text + "^{" + power_terms[i].text + "}";
+		}
+		console.log(text);
+		new_math_str = replace_in_mtstr([selected_nodes[0].parent], text);
+		current_index++;
+		prepare(new_math_str); //merge exponentials into exponential
+	} else if (selected_nodes[0].type === "factor" && same_type && same_ggparents) {
+		if (selected_nodes[0].parent.parent.parent !== undefined) {
+			if (!(selected_nodes[0].parent.parent.parent.type2 === "frac"
+		&& selected_nodes[0].parent.parent.parent.children[0].children.length === 1)) {
+				return;
+			}
+		} else {return;}
+		//ANIMATION?
+		var nominator_text = "", denominator_text = "", nominator_text2 = "", denominator_text2 = "";
+		var nominator_factors = selected_nodes[0].parent.parent.parent.children[0].children[0].children;
+		var denominator_factors;
+		for (var j=0; j<nominator_factors.length; j++) {
+			var do_continue = false;
+			for (var k=0; k<selected_nodes.length; k++) {
+				if (nominator_factors[j].model.id === selected_nodes[k].model.id) {do_continue = true;}
+			}
+			if (do_continue) {continue;}
+			nominator_text2+=nominator_factors[j].text;
+		}
+		for (var i=0; i<selected_nodes.length; i++) {
+			if (selected_nodes[i].parent.parent.type === "nominator") {
+				nominator_text+=selected_nodes[i].text;
+			} else if (selected_nodes[i].parent.parent.type === "denominator") {
+				denominator_text+=selected_nodes[i].text;
+			}
+		}
+		if (denominator_text !== "" && denominator_text !== selected_nodes[0].parent.parent.parent.children[1].text) {
+				if (!(selected_nodes[0].parent.parent.parent.children[1].children.length === 1)) {
+					return;
+				} else {
+					var denominator_factors = selected_nodes[0].parent.parent.parent.children[1].children[0].children;
+					for (var j=0; j<denominator_factors.length; j++) {
+						do_continue = false;
+						for (var k=0; k<selected_nodes.length; k++) {
+							if (denominator_factors[j].model.id === selected_nodes[k].model.id) {do_continue = true;}
+						}
+						if (do_continue) {continue;}
+						denominator_text2+=denominator_factors[j].text;
+					}
+				}
+			} else if (denominator_text === "") {
+				denominator_text2 = selected_nodes[0].parent.parent.parent.children[1].text;
+			} else if (denominator_text === selected_nodes[0].parent.parent.parent.children[1].text) {
+				denominator_text2 = ""
+			}
+		var new_text = "\\frac{" + nominator_text + "}{" + denominator_text + "}" + "\\frac{" + nominator_text2 + "}{" + denominator_text2 + "}";
+		new_math_str = replace_in_mtstr([selected_nodes[0].parent.parent.parent], new_text);
+		current_index++;
+		prepare(new_math_str); //split factors out of a fraction
 	}
 }
 
-//factor factor from group of terms
-document.getElementById("pull").onclick = function() {
-	pull();
+//merging stuff
+document.getElementById("merge").onclick = function() {
+	merge();
 	if (recording) {
-		manipulation_rec.push({manipulation:13});
+		manipulation_rec.merge({manipulation:13});
 	}
 };
-function pull() {
-	var same_parents = true, same_type = true, same_type2 = true, same_text = true;
+function merge() {
+	var same_parents = true, same_type = true, same_type2 = true, same_text = true, 
+	single_factor = true, are_fracs = true, same_term = true;
 	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same parent
 		if (selected_nodes[i].parent !== selected_nodes[i+1].parent) {same_parents = false}
 	}
@@ -1181,7 +1314,33 @@ function pull() {
 	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts have the same text
 		if (selected_nodes[i].text !== selected_nodes[i+1].text) {same_text = false}
 	}
-	if (selected_nodes[0].type === "factor" && !same_parents && same_type && same_text) {
+	for (var i=0; i<selected_nodes.length; i++) {//making sure all elemnts have one factor
+		var child_cnt = 1;
+		if (selected_nodes[i].children[0] !== undefined) {
+			if (selected_nodes[i].children[0].type === "op") {
+				child_cnt++;
+			}
+		}
+		if (selected_nodes[i].children.length !== child_cnt) {single_factor = false}
+	}
+	for (var i=0; i<selected_nodes.length; i++) {//making sure all elemnts are fracs (for single elements)
+		if (selected_nodes[i].children[selected_nodes[i].children.length-1] !== undefined) {
+			if (selected_nodes[i].children[selected_nodes[i].children.length-1].type2 !== "frac") {are_fracs = false}
+		}
+	}
+	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all terms are the same
+		var term_text1, term_text2;
+		if (selected_nodes[i].children[0] !== undefined) {
+			if (selected_nodes[i].children[0].type === "op") {
+				term_text1 = selected_nodes[i].text.slice(1, -1);
+			}
+			if (selected_nodes[i+1].children[0].type === "op") {
+				term_text2 = selected_nodes[i+1].text.slice(1, -1);
+			}
+		}
+		if (term_text1 !== term_text2) {same_term = false}
+	}
+	if (selected_nodes[0].type === "factor" && !same_parents && same_type && same_text) { //factor out
 		$selected.animate({"font-size": 0, opacity: 0}, step_duration) //AS USUAL, IMPROVE ANIMATION
 	    .css('overflow', 'visible')
 	    .promise()
@@ -1200,7 +1359,9 @@ function pull() {
 				});
 				term_ids.push(parent.model.id);
 			}
+			playing = true;
 	  		prepare(new_math_str);
+	  		playing = false;
 	  		for (var k=0; k<term_ids.length; k++) {
 	  			var term = math_root.first(function (node) {
 	  				return node.model.id === term_ids[k];
@@ -1215,7 +1376,41 @@ function pull() {
 	  		current_index++;
 			prepare(new_math_str);
 	  	});
-	} else if (selected_nodes[0].type2 === "frac" && same_parents && same_type && same_type2) {
+	} else if (selected_nodes[0].type === "factor" && same_parents && same_type && same_text) {
+		//ANIMATION??
+		new_math_str = replace_in_mtstr(selected_nodes, selected_nodes[0].text + "^{" + selected_nodes.length.toString() + "}");
+		current_index++;
+		prepare(new_math_str);
+	} else if (selected_nodes[0].type === "term" && same_type && same_term) { //merge equal terms into term
+		var term_text;
+		if (selected_nodes[0].children[0].type === "op") {
+			term_text = selected_nodes[i].text.slice(1, -1);
+		}
+		new_math_str = replace_in_mtstr(selected_nodes, "+" + selected_nodes.length.toString() + term_text);
+		current_index++;
+		prepare(new_math_str);
+	} else if (selected_nodes[0].type === "term" && same_type && single_factor && are_fracs) { //merge terms into fraction
+		for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts have the same denominator
+			if (selected_nodes[i].children[selected_nodes[i].children.length-1].children[1].text !== selected_nodes[i+1].children[selected_nodes[i+1].children.length-1].children[1].text) {
+				return;
+			}
+		}
+		//ANIMATION??
+		var denominator_text = selected_nodes[0].children[selected_nodes[0].children.length-1].children[1].text;
+		var nominator_text = "";
+		for (var i=0; i<selected_nodes.length; i++) {
+			if (i > 0) {nominator_text+="+";}
+			if (selected_nodes[i].children[selected_nodes[i].children.length-1].children[0].children.length > 1) {
+				nominator_text+="(" + selected_nodes[i].children[selected_nodes[i].children.length-1].children[0].text + ")";
+			} else {
+				nominator_text+=selected_nodes[i].children[selected_nodes[i].children.length-1].children[0].text;
+			}
+		}
+		var new_text = "\\frac{" + nominator_text + "}{" + denominator_text + "}";
+		new_math_str = replace_in_mtstr(selected_nodes, new_text);
+		current_index++;
+		prepare(new_math_str);
+	} else if (selected_nodes[0].type2 === "frac" && same_parents && same_type && same_type2) { //merge factors into fraction
 		//ANIMATION??
 		var nominator_text = "", denominator_text = "";
 		for (var i=0; i<selected_nodes.length; i++) {
@@ -1226,20 +1421,61 @@ function pull() {
 		new_math_str = replace_in_mtstr(selected_nodes, new_text);
 		current_index++;
 		prepare(new_math_str);
-
-	} else if (selected_nodes[0].type2 === "exp" && same_parents && same_type && same_type2) {
-		var same_base = true;
-		for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same parent
-			if (selected_nodes[i].base !== selected_nodes[i+1].base) {same_base = false}
+	} else if ((selected_nodes[0].type2 === "exp" || selected_nodes[0].type2 === "group_exp") 
+	&& same_parents && same_type && same_type2) { //merge exponentials
+		var same_base = true, same_power = true;
+		for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same base
+			if (selected_nodes[i].children[1] !== selected_nodes[i+1].children[1]) {same_base = false}
 		}
-		if (!same_base) {return;}
+		for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same base
+			if (selected_nodes[i].children[0] !== selected_nodes[i+1].children[0]) {same_power = false}
+		}
+		if (same_base && !same_power) {//with common base
+			//ANIMATION??
+			var power_text = "", base_text;
+			if (selected_node[0].children[0].length === 1) {
+				base_text = selected_node[0].children[0].text;
+			} else {
+				base_text = "(" + selected_node[0].children[0].text + ")";
+			}
+			for (var i=0; i<selected_nodes.length; i++) {
+				if (i > 0) {power_text+="+";}
+				power_text+=selected_nodes[i].children[1].text;
+			}
+			var new_text = base_text + "^{" + power_text + "}";
+			new_math_str = replace_in_mtstr(selected_nodes, new_text);
+			current_index++;
+			prepare(new_math_str);
+		} else if (same_power && !same_base) {
+			//ANIMATION??
+			var power_text = selected_node[0].children[1].text, base_text;
+			for (var i=0; i<selected_nodes.length; i++) {
+				if (selected_node[i].children[0].length === 1) {
+					base_text+=selected_node[i].children[0].text;
+				} else {
+					base_text+="(" + selected_node[i].children[0].text + ")";
+				}
+			}
+			var new_text = base_text + "^{" + power_text + "}";
+			new_math_str = replace_in_mtstr(selected_nodes, new_text);
+			current_index++;
+			prepare(new_math_str);
+		}
+	} else if (selected_nodes[0].type2 === "sqrt" && same_parents && same_type2) { //merge square roots into square root
 		//ANIMATION??
-		var power_text = "", base_text = selected_node[0].children[0].text;
-		for (var i=0; i<selected_nodes.length; i++) {
-			if (i > 0) {power_text+="+";}
-			power_text+=selected_nodes[i].children[1].text;
+		var new_text = "\\sqrt{"
+		for (var i=0; i<selected_nodes.length; i++) {//making sure all elemnts are fracs (for single elements)
+			if (selected_nodes[i].children.length === 1) {
+				new_text+=selected_nodes[i].children[0].text;
+			} else {
+				new_text+="(";
+				for (var j=0; j<selected_nodes[i].children.length; j++) {
+					new_text+=selected_nodes[i].children[j].text;
+				}
+				new_text+=")";
+			}
 		}
-		var new_text = base_text + "^{" + power_text + "}";
+		new_text+="}";
 		new_math_str = replace_in_mtstr(selected_nodes, new_text);
 		current_index++;
 		prepare(new_math_str);
