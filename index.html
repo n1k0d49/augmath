@@ -16,79 +16,146 @@
 </head>
 <body>
 
-<p id="MathInput">Input some algebraic equation: <input size="50" id="math_input" /></p>
+<nav class="navbar navbar-default">
+  <div class="container-fluid">
+    <!-- Brand and toggle get grouped for better mobile display -->
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="#">AugMath</a>
+    </div>
 
-<p class="math"><span id="math">...</span></p>
+    <!-- Collect the nav links, forms, and other content for toggling -->
+    <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+        	<a href="https://github.com/guillefix/augmath">
+        		GitHub
+        	</a>
+        </li>
+      </ul>
+    </div><!-- /.navbar-collapse -->
+  </div><!-- /.container-fluid -->
+</nav>
 
-<div class="container-fluid">
-<div class="row manip">
-	<label><input type="checkbox" name="multi_select" id="multi_select"/> Select multiple? <!--<span class="note">(doesn't work for some things atm!)--></span></label>
-	<label>Manipulative: 
-		<select class="traverse" id="manip">
-			<option value="term" selected>Term</option>
-			<option value="factor">Factor</option>
-			<option value="power">Power</option>
-			<option value="base">Base</option>
-			<option value="nominator">Nominator</option>
-			<option value="denominator">Denominator</option>
-			<option value="available">Available (binom)</option>
-			<option value="chosen">Chosen (binom)</option>
-		</select>
-	</label>
-	&nbsp;
-	<label> Depth: 
-		<input type="number" min="1" step="1" value="1" class="traverse" id="depth">
-	</label>
-</div>
-<br>
-<div class="row basic_ops">
-	<button type="button" class="btn btn-default" id="flip_equation">Flip equation</button>
-	&nbsp;
-	<button type="button" class="btn btn-default" id="change_side">Change side</button>
-	&nbsp;
-	<button type="button" class="btn btn-default" id="move_left">&lt;-</button>
-	<button type="button" class="btn btn-default" id="move_up">^</button>
-	<button type="button" class="btn btn-default" id="move_down">v</button>
-	<button type="button" class="btn btn-default" id="move_right">-></button>
-	&nbsp;
-	<button type="button" class="btn btn-default" id="split">Split</button>
-	&nbsp;
-	<button type="button" class="btn btn-default" id="merge">Merge</button>
-	&nbsp;
-	<button type="button" class="btn btn-default" id="eval">Evaluate/Simplify</button>
-	&nbsp;
-</div>
-<br>
-<div class="row more_ops">
-	<label>Append to both sides: <input id="add_both_sides" size="20"/></label>
-	&nbsp;
-	<label>Replace: <input id="replace" size="20" /></label>
-	&nbsp;
-	<button type="button" class="btn btn-default" id="remove">Remove</button>
-	&nbsp;
-	<button type="button" class="btn btn-default" id="unbracket">Unbracket</button>
-	&nbsp;
-</div>
-<br>
-<div class="row more_ops">
-    <button type="button" class="btn btn-default" id="undo">Undo</button>
-    &nbsp;
-    <button type="button" class="btn btn-default" id="redo">Redo</button>
-    &nbsp;
-    <label><input type="checkbox" id="recording"/> Recording</span></label>
-    &nbsp;
-    <button type="button" class="btn btn-default" id="make_json">Save JSON</button>
-    &nbsp;
-</div>
-<br>
-<div class="row more_ops play_mode">
-    <button type="button" class="btn btn-default" id="next_step">Next Step</button>
-    &nbsp;
-    <button type="button" class="btn btn-default" id="prev_step">Previous Step</button>
-    &nbsp;
-    <button type="button" class="btn btn-default" id="play">Play</button>
-    &nbsp;
-</div>
+<div class="container-fluuid">
+	<div class="col-md-3 toolbar">
+		<ul class="list-group text-center">
+			<li class="list-group-item disabled">
+				<h4>Selection</h4>
+			</li>
+			<li class="list-group-item">
+				<span>Manipulative: 
+				<select class="traverse" id="manip">
+					<option value="term" selected>Term</option>
+					<option value="factor">Factor</option>
+					<option value="power">Power</option>
+					<option value="base">Base</option>
+					<option value="nominator">Nominator</option>
+					<option value="denominator">Denominator</option>
+					<option value="available">Available (binom)</option>
+					<option value="chosen">Chosen (binom)</option>
+				</select>
+			</span>
+			</li>
+			<li class="list-group-item">
+				<span>Select multiple <input type="checkbox" name="multi_select" id="multi_select"/> (buggy feature)</span>
+			</li>
+			<li class="list-group-item">
+				<span> Depth: 
+					<input type="number" min="1" step="1" value="1" class="traverse" id="depth">
+				</span>
+			</li>
+			<li class="list-group-item disabled">
+				<h4>Manipulations</h4>
+			</li>
+			<li class="list-group-item">
+				<button type="button" class="btn btn-default" id="undo">
+					Undo
+				</button>
+				<button type="button" class="btn btn-default" id="redo">
+					Redo
+				</button>
+			</li>
+			<li class="list-group-item">
+				<button type="button" class="btn btn-default" id="flip_equation">
+					Flip equation
+				</button>
+				<button type="button" class="btn btn-default" id="change_side">
+					Change side
+				</button>
+			</li>
+			<li class="list-group-item">
+				<button type="button" class="btn btn-default" id="move_up">
+						<span class="glyphicon glyphicon-arrow-up"></span>
+				</button>
+				<div class="row">
+					<button type="button" class="btn btn-default" id="move_left">
+						<span class="glyphicon glyphicon-arrow-left"></span>
+					</button>
+					<span>Move selection</span>
+					<button type="button" class="btn btn-default" id="move_right">
+						<span class="glyphicon glyphicon-arrow-right"></span>
+					</button>
+				</div>
+				<button type="button" class="btn btn-default" id="move_down">
+						<span class="glyphicon glyphicon-arrow-down"></span>
+				</button>
+			</li>
+			<li class="list-group-item">
+				<button type="button" class="btn btn-default" id="split">
+					Split
+				</button>
+				<button type="button" class="btn btn-default" id="merge">
+					Merge
+				</button>
+			</li>
+			<button type="button" class="list-group-item" id="eval">
+				Evaluate/Simplify
+			</button>
+			<li class="list-group-item">
+				<label>Append to both sides: <input id="add_both_sides" size="20" placeholder="Type LaTeX here" onchange="add_both_sides(this.value)" /></label>
+			</li>
+			<li class="list-group-item">
+				<label>Replace selection with: <input id="replace" size="20" placeholder="Type LaTeX here" onchange="replace(this.value)" /></label>
+			</li>
+			<button type="button" class="list-group-item" id="remove">
+				Remove
+			</button>
+			<button type="button" class="list-group-item" id="unbracket">
+				Unbracket
+			</button>
+			<li class="list-group-item disabled">
+				<h4>Recording</h4>
+			</li>
+			<li class="list-group-item">
+				<span>Recording <input type="checkbox" name="multi_select" id="multi_select"/></span>
+			</li>
+			<button type="button" class="list-group-item" id="make_json">
+				Save JSON
+			</button>
+			<button type="button" class="list-group-item" id="play">
+				Play
+			</button>
+			<button type="button" class="list-group-item" id="prev_step">
+				Previous Step
+			</button>
+			<button type="button" class="list-group-item" id="next_step">
+				Next Step
+			</button>
+		</ul>
+	</div> <!-- toolbar -->
+
+	<div class="col-md-8">
+		<p id="MathInput">Input some algebraic equation: <input size="50" onchange="prepare(this.value)" /></p>
+		<div class="math-container">
+			<p id="math">...</p>
+		</div>
+	</div>
 </div>
 
 <!-- CDN front end dependencies -->
@@ -100,7 +167,6 @@
 
 
 <!-- local front end dependencies -->
-<script src="symbols.js"></script>
 <script src="bower_components/katex/dist/katex.min.js"></script>
 <script src="bower_components/jquery/dist/jquery.js"></script>
 <script src="bower_components/mathjs/dist/math.js"></script>
