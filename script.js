@@ -7,6 +7,8 @@ var h_eq_shift=0,
 	manip = "term",
 	depth = 1, 
 	multi_select = false, 
+	var_select = false, 
+	replace_ind = false, 
 	step_duration = 700,
 	TEST, 
 	inner_select = false, 
@@ -67,7 +69,9 @@ manip_el.on("change", function () {
 });
 depth_el.on("change", function () {remove_events(manip, depth); depth = parseInt(this.value, 10); create_events(manip, depth);});
 $("#multi_select").on("click", function () {multi_select = document.getElementById("multi_select").checked;});
-var math_str_el = $("#math_input");
+$("#replace_ind").on("click", function () {replace_ind = document.getElementById("replace_ind").checked;});
+$("#var_select").on("click", function () {var_select = document.getElementById("var_select").checked; if (var_select) {multi_select = false;}});
+var math_str_el = $("#MathInput");
 math_str_el.keyup(function (e) {
     if (e.keyCode == 13) {
         prepare(math_str_el.get()[0].value);
@@ -193,7 +197,7 @@ function remove_events(type, depth) {
 }
 
 function create_events(type, depth) {
-	var $selectable = $(), index;
+	var  index;
 	//reset stuff
 	math_root.walk(function (node) {
 		node.selected = false;
@@ -204,11 +208,6 @@ function create_events(type, depth) {
 
 	math_root.walk(function (node) {
 		if (node.model.id !== "0" && node.type === type && getIndicesOf("/", node.model.id).length === depth) {
-			$selectable = $selectable.add(node.model.obj);
-	    }
-	});
-	math_root.walk(function (node) {
-		if (node.model.id !== "0" && node.type === type && getIndicesOf("/", node.model.id).length === depth) {
 	    	node.model.obj.on("click", function() {
 	    		$this = node.model.obj;
 	    		$this.toggleClass("selected");
@@ -217,8 +216,17 @@ function create_events(type, depth) {
 	    			math_root.walk(function (node2) {
 						if (node2 !== node) {node2.selected = false;}
 					});
-	    			$selectable.filter(".selected").not($this).toggleClass("selected");
+	    			$(".base *").filter(".selected").not($this).toggleClass("selected");
 	    		}
+	    		if (var_select) {
+					selected_text = node.text;
+					math_root.walk(function (node2) {
+						if (node.selected && !node2.selected && node2.text === node.text) {
+							node2.selected = true;
+							node2.model.obj.toggleClass("selected");
+						}
+					});
+				}
 	    		selected_nodes = [];
 	    		selected_text = "";
 	    		math_root.walk(function (node) {
@@ -671,8 +679,6 @@ function parse_poly(root, poly, parent_id, is_container) {
 }
 //this function prepares and renders the function with LaTeX, it also calls parse_poly to create the tree
 function prepare(math) {
-	
-	console.log("lel");
 
 	math = math.replace(/\\frac{}/g, "\\frac{1}")
 				.replace(/\\frac{([ -~]+)}{}/g, "$1")

@@ -64,6 +64,8 @@
 			</li>
 			<li class="list-group-item">
 				<span>Select multiple <input type="checkbox" name="multi_select" id="multi_select"/> (buggy feature)</span>
+				<br>
+				<span>Select variable <input type="checkbox" name="multi_select" id="var_select"/></span>
 			</li>
 			<li class="list-group-item">
 				<span> Depth: 
@@ -122,6 +124,7 @@
 			</li>
 			<li class="list-group-item">
 				<label>Replace selection with: <input id="replace" size="20" placeholder="Type LaTeX here" onchange="replace(this.value)" /></label>
+				<span>Replace individually <input type="checkbox" name="multi_select" id="replace_ind"/></span>
 			</li>
 			<button type="button" class="list-group-item" id="remove">
 				Remove
@@ -167,6 +170,7 @@
 
 
 <!-- local front end dependencies -->
+<script src="symbols.js"></script>
 <script src="bower_components/katex/dist/katex.min.js"></script>
 <script src="bower_components/jquery/dist/jquery.js"></script>
 <script src="bower_components/mathjs/dist/math.js"></script>
