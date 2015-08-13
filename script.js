@@ -219,7 +219,6 @@ function create_events(type, depth) {
 	    			$(".base *").filter(".selected").not($this).toggleClass("selected");
 	    		}
 	    		if (var_select) {
-					selected_text = node.text;
 					math_root.walk(function (node2) {
 						if (node.selected && !node2.selected && node2.text === node.text) {
 							node2.selected = true;
@@ -232,6 +231,9 @@ function create_events(type, depth) {
 	    		math_root.walk(function (node) {
 					if (node.selected) {selected_nodes.push(node); selected_text += node.text;}
 				});
+				if (var_select) {
+					selected_text = node.text;
+				}
 				equals_position = $equals.offset();
 				$selected = $(".selected");
 				selected_width = tot_width($selected, true);
@@ -1562,7 +1564,16 @@ function replace(text) {
     .css('overflow', 'visible')
     .promise()
     .done(function() {
-  		new_math_str = replace_in_mtstr(selected_nodes, text);
+    	if (replace_ind) {
+    		var text_arr = [];
+    		for (var i=0; i<selected_nodes.length; i++) {
+    			text_arr.push(text);
+    		}
+			new_math_str = replace_in_mtstr(selected_nodes, text_arr);
+
+    	} else {
+  			new_math_str = replace_in_mtstr(selected_nodes, text);
+  		}
   		current_index++;
 		prepare(new_math_str);
   	});
