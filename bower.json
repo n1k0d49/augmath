@@ -22,6 +22,7 @@
     "bootstrap": "~3.3.5",
     "mathjs": "~1.7.1",
     "jquery": "~2.1.4",
+    "jquery-ui": "~1.11.4",
     "TreeModel-min": "http://jnuno.com/tree-model-js/vendor/jnuno/TreeModel-min.js",
     "coffeequate.min": "http://matthewja.com/Coffeequate/coffeequate.min.js"
   },

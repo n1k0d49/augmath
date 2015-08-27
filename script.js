@@ -24,6 +24,8 @@ var h_eq_shift=0,
 	recording_index = 0, 
 	manipulation_rec = [], 
 	playing = false;
+	//for multi-equation
+	equations = [];
 
 //jQuery plugins
 (function($) {
@@ -40,7 +42,7 @@ var h_eq_shift=0,
     }    
 })(jQuery);
 
-//UI STUFF
+//SELECTION control
 var manip_el = $("#manip"), depth_el = $("#depth");
 manip_el.on("change", function () {
 	remove_events(manip, depth); 
@@ -71,32 +73,36 @@ depth_el.on("change", function () {remove_events(manip, depth); depth = parseInt
 $("#multi_select").on("click", function () {multi_select = document.getElementById("multi_select").checked;});
 $("#replace_ind").on("click", function () {replace_ind = document.getElementById("replace_ind").checked;});
 $("#var_select").on("click", function () {var_select = document.getElementById("var_select").checked; if (var_select) {multi_select = false;}});
-var math_str_el = $("#MathInput");
+var math_str_el = $("#MathInput input");
 math_str_el.keyup(function (e) {
     if (e.keyCode == 13) {
         prepare(math_str_el.get()[0].value);
     }
 });
+
+//RECORD/PLAY control
 $("#recording").on("click", function () {
 	recording = document.getElementById("recording").checked;
+	if (recording) {
+		math_str_rec = [math_str[current_index]];
+		manipulation_rec.unshift({});
+		selected_nodes_id_rec.unshift([]);
+	}
 });
 $("#play").on("click", function () {
-	math_str_rec.unshift([math_str_rec[0][0]]);
-	manipulation_rec.unshift({});
-	selected_nodes_id_rec.unshift([]);
 	playing = true;
 	document.getElementById("recording").checked = false;
 	recording = document.getElementById("recording").checked;
 	recording_index = 0;
-	math_str = math_str_rec[recording_index];
-	current_index = math_str.length-1;
+	math_str = [math_str_rec[recording_index]];
+	current_index = 0;
 	prepare(math_str[current_index]);
 });
 $("#next_step").on("click", function () {
 	if (recording_index>selected_nodes_id_rec.length-2) {return;}
 	recording_index++;
-	math_str = math_str_rec[recording_index];
-	current_index = math_str.length-1;
+	math_str = [math_str_rec[recording_index]];
+	current_index = 0;
 	selected_nodes = [];
 	$selected = $();
 	var ids = selected_nodes_id_rec[recording_index];
@@ -165,27 +171,42 @@ $("#next_step").on("click", function () {
 $("#prev_step").on("click", function () {//FIX THIS
 	if (!(recording_index>0)) {return;}
 	recording_index--;
-	math_str = math_str_rec[recording_index];
+	math_str = [math_str_rec[recording_index]];
 	current_index = math_str.length-1;
 	prepare(math_str[current_index]);
 });
 
 $("#make_json").on("click", function () {
-	alert("topkek");
-	console.log("topkek");
 	console.log("selected_nodes_id_rec");
 	console.log(JSON.stringify(selected_nodes_id_rec));
 	console.log("math_str_rec");
 	console.log(JSON.stringify(math_str_rec));
 	console.log("manipulation_rec");
 	console.log(JSON.stringify(manipulation_rec));
-	alert("bottomkek");
-	console.log("bottomkek");
+});
+
+//EQUATIONS PANEL
+
+function add_equation(eq) {     
+	var eq_number = equations.push(eq)-1;
+	var eq_html = '<a class="list-group-item" onmouseover="$(this).children(\'div\').show()" onmouseout="$(this).children(\'div\').hide()"><p id="'+'eq'+eq_number.toString()+'" class="list-group-item">...</p><div class="eq_buttons"><br><button type="button" class="btn btn-default" onclick="prepare(equations['+eq_number.toString()+'])"><span class="glyphicon glyphicon-chevron-left"></span></button><button type="button" class="btn btn-default" onclick="$(this).parent().parent().remove()"><span class="glyphicon glyphicon-remove"></span></button></div></a>';
+	$("#eq_list").prepend(eq_html);     
+	var	eq_el = document.getElementById('eq'+eq_number.toString()); katex.render(equations[eq_number], eq_el, { displayMode: true }); }
+
+$("#add_eq").keyup(function (e) {
+    if (e.keyCode == 13) {
+    	var eq = $("#add_eq").get()[0].value;
+        add_equation(eq);
+    }
+});
+$("#keep").on("click", function () {
+	var eq = math_str_el.get()[0].value;
+    add_equation(eq);
 });
 
 //USEFUL FUNCTIONS
 
-//remove and create events that happen when user clicks a manipulative
+//remove and create events handlers that happen when user clicks a manipulative
 function remove_events(type, depth) {
 	var $selectable = $();
 	math_root.walk(function (node) {
@@ -417,8 +438,9 @@ function eval_expression(expression) {
 								.replace(/\*?\(\*?/g, "(")
 								.replace(/\*?\)\*?/g, ")")
 								.replace(/\*?\/\*?/g, "/")
-								.replace(/\(\+/g, "(");
-		expression = expression.replace(/\*\^\*\{\*([0-9]+)\*\}/g, "**$1"); //need to check if this works
+								.replace(/\(\+/g, "(")
+								.replace(/\*\^\*\{\*([0-9]+)\)/g, "**$1")
+								.replace(/\^\*\{\*([0-9]+)\)/g, "**$1");
 		console.log("Expression is : " + expression);
 		try {
 			new_term = CQ(expression).simplify().toLaTeX().replace("\\cdot", ""); //removing cdot format
@@ -703,14 +725,14 @@ function prepare(math) {
 			ids.push(selected_nodes[i].model.id);
 		}
 		selected_nodes_id_rec.push(ids);
-		math_str_rec.push(math_str.slice());
+		math_str_rec.push(math_str.slice(-1));
 	}
 
 	var math_el = document.getElementById("math");
 	katex.render(math, math_el, { displayMode: true });
-	math_str_el.get()[0].value = math_str[current_index];
+	math_str_el.val(math_str[current_index]);
 
-	var root_poly = $(".base");
+	var root_poly = $("#math .base");
 
 	tree = new TreeModel();
 
@@ -720,14 +742,10 @@ function prepare(math) {
 	
 	parse_poly(math_root, root_poly, 0, true);
 
-	math_root.walk(function (node) {
-		node.selected = false;
-	});
-
 	create_events(manip, depth);
 
-	//repositioning equals so that it's always in the same place
-	$equals = $(".base").find(".mrel");
+	//repositioning equals so that it's always in the same place. put in fixed value.
+	$equals = $("#math .base").find(".mrel");
 	if ($equals.length !== 0) {
 		new_equals_position = $equals.offset();
 		if (equals_position.left !== 0) {h_eq_shift += equals_position.left-new_equals_position.left;}
@@ -755,7 +773,14 @@ document.getElementById("change_side").onclick = function() {
 		manipulation_rec.push({manipulation:1});
 	}
 };
+document.getElementById("tb-change_side").onclick = function() {
+	change_side();
+	if (recording) {
+		manipulation_rec.push({manipulation:1});
+	}
+};
 function change_side() {
+	var new_term;
 	equals_position = $equals.offset();
 	equals_node = math_root.first(function (node) {
 		if (node.children.length > 0) {
@@ -951,6 +976,12 @@ document.getElementById("move_right").onclick = function() {
 		manipulation_rec.push({manipulation:4});
 	}
 };
+document.getElementById("tb-move_right").onclick = function() {
+	move_right();
+	if (recording) {
+		manipulation_rec.push({manipulation:4});
+	}
+};
 function move_right(){
 	if ($selected.next().filter(".mrel").length === 0) {
 		var include_op;
@@ -979,6 +1010,12 @@ function move_right(){
 }
 
 document.getElementById("move_left").onclick = function() {
+	move_left();
+	if (recording) {
+		manipulation_rec.push({manipulation:5});
+	}
+};
+document.getElementById("tb-move_left").onclick = function() {
 	move_left();
 	if (recording) {
 		manipulation_rec.push({manipulation:5});
@@ -1018,6 +1055,12 @@ document.getElementById("move_up").onclick = function() {
 		manipulation_rec.push({manipulation:5}); //change number
 	}
 };
+document.getElementById("tb-move_up").onclick = function() {
+	move_up();
+	if (recording) {
+		manipulation_rec.push({manipulation:5}); //change number
+	}
+};
 function move_up() {
 	var same_parents = true, same_type = true;
 	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same type2
@@ -1035,7 +1078,7 @@ function move_up() {
 		var nominator = selected_nodes[0].parent.parent.parent.children[0];
 		var new_nom_text = "";
 		for (var i=0; i<selected_nodes.length; i++) {
-			switch (selected_nodes[0].type2) {
+			switch (selected_nodes[i].type2) {
 				case "exp":
 					new_nom_text+=selected_nodes[i].children[0].text + "^{" + "-" + selected_nodes[i].children[1].text + "}";
 					break;
@@ -1046,7 +1089,7 @@ function move_up() {
 					new_nom_text+="(" + selected_nodes[i].text + ")" + "^{-1}";
 					break;
 				default:
-					new_nom_text+=selected_nodes[i].children[0].text + "^{-1}";
+					new_nom_text+=selected_nodes[i].text + "^{-1}";
 			}
 		}
 		if (nominator.children.length === 1) {
@@ -1075,6 +1118,12 @@ document.getElementById("move_down").onclick = function() {
 		manipulation_rec.push({manipulation:5}); //change number
 	}
 };
+document.getElementById("tb-move_down").onclick = function() {
+	move_down();
+	if (recording) {
+		manipulation_rec.push({manipulation:5}); //change number
+	}
+};
 function move_down() {
 	var same_parents = true;
 	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same parent
@@ -1088,7 +1137,7 @@ function move_down() {
 		var denominator = selected_nodes[0].parent.parent.parent.children[1];
 		var new_denom_text = "";
 		for (var i=0; i<selected_nodes.length; i++) {
-			switch (selected_nodes[0].type2) {
+			switch (selected_nodes[i].type2) {
 				case "exp":
 					new_denom_text+=selected_nodes[i].children[0].text + "^{" + "-" + selected_nodes[i].children[1].text + "}";
 					break;
@@ -1099,7 +1148,7 @@ function move_down() {
 					new_denom_text+="(" + selected_nodes[i].text + ")" + "^{-1}";
 					break;
 				default:
-					new_denom_text+=selected_nodes[i].children[0].text + "^{-1}";
+					new_denom_text+=selected_nodes[i].text + "^{-1}";
 			}
 		}
 		if (denominator.children.length === 1) {
@@ -1124,6 +1173,12 @@ function move_down() {
 
 //splitting stuff
 document.getElementById("split").onclick = function() {
+	split();
+	if (recording) {
+		manipulation_rec.split({manipulation:8});
+	}
+};
+document.getElementById("tb-split").onclick = function() {
 	split();
 	if (recording) {
 		manipulation_rec.split({manipulation:8});
@@ -1313,6 +1368,12 @@ document.getElementById("merge").onclick = function() {
 		manipulation_rec.merge({manipulation:13});
 	}
 };
+document.getElementById("tb-merge").onclick = function() {
+	merge();
+	if (recording) {
+		manipulation_rec.merge({manipulation:13});
+	}
+};
 function merge() {
 	var same_parents = true, same_type = true, same_type2 = true, same_text = true, 
 	single_factor = true, are_fracs = true, same_term = true;
@@ -1439,18 +1500,18 @@ function merge() {
 	&& same_parents && same_type && same_type2) { //merge exponentials
 		var same_base = true, same_power = true;
 		for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same base
-			if (selected_nodes[i].children[1] !== selected_nodes[i+1].children[1]) {same_base = false}
+			if (selected_nodes[i].children[0].text !== selected_nodes[i+1].children[0].text) {same_base = false}
 		}
 		for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same base
-			if (selected_nodes[i].children[0] !== selected_nodes[i+1].children[0]) {same_power = false}
+			if (selected_nodes[i].children[1].text !== selected_nodes[i+1].children[1].text) {same_power = false}
 		}
 		if (same_base && !same_power) {//with common base
 			//ANIMATION??
-			var power_text = "", base_text;
-			if (selected_node[0].children[0].length === 1) {
-				base_text = selected_node[0].children[0].text;
+			var power_text = "", base_text="";
+			if (selected_nodes[0].children[0].length === 1) {
+				base_text = selected_nodes[0].children[0].text;
 			} else {
-				base_text = "(" + selected_node[0].children[0].text + ")";
+				base_text = "(" + selected_nodes[0].children[0].text + ")";
 			}
 			for (var i=0; i<selected_nodes.length; i++) {
 				if (i > 0) {power_text+="+";}
@@ -1460,17 +1521,17 @@ function merge() {
 			new_math_str = replace_in_mtstr(selected_nodes, new_text);
 			current_index++;
 			prepare(new_math_str);
-		} else if (same_power && !same_base) {
+		} else if (same_power && !same_base) { //with common power
 			//ANIMATION??
-			var power_text = selected_node[0].children[1].text, base_text;
+			var power_text = selected_nodes[0].children[1].text, base_text="";
 			for (var i=0; i<selected_nodes.length; i++) {
-				if (selected_node[i].children[0].length === 1) {
-					base_text+=selected_node[i].children[0].text;
+				if (selected_nodes[i].children[0].children.length === 0) {
+					base_text+=selected_nodes[i].children[0].text;
 				} else {
-					base_text+="(" + selected_node[i].children[0].text + ")";
+					base_text+="(" + selected_nodes[i].children[0].text + ")";
 				}
 			}
-			var new_text = base_text + "^{" + power_text + "}";
+			var new_text = "(" + base_text + ")" + "^{" + power_text + "}";
 			new_math_str = replace_in_mtstr(selected_nodes, new_text);
 			current_index++;
 			prepare(new_math_str);
@@ -1514,6 +1575,12 @@ function unbracket() {
 
 //evaulate simple sum or multiplication
 document.getElementById("eval").onclick = function() {
+	eval();
+	if (recording) {
+		manipulation_rec.push({manipulation:3});
+	}
+};
+document.getElementById("tb-eval").onclick = function() {
 	eval();
 	if (recording) {
 		manipulation_rec.push({manipulation:3});
@@ -1604,6 +1671,12 @@ document.getElementById("flip_equation").onclick = function() {
 		manipulation_rec.push({manipulation:14});
 	}
 };
+document.getElementById("tb-flip_equation").onclick = function() {
+	flip_equation();
+	if (recording) {
+		manipulation_rec.push({manipulation:14});
+	}
+};
 function flip_equation() {
 	var offset1 = tot_width($equals.prevAll(), true, false) + tot_width($equals, true, false);
 	var offset2 = tot_width($equals.nextAll(), true, false) + tot_width($equals, true, false);
@@ -1620,6 +1693,7 @@ function flip_equation() {
 
 //HISTORY
 //undo
+document.getElementById("tb-undo").onclick = undo;
 document.getElementById("undo").onclick = undo;
 function undo() {
 	if (current_index > 0) {
@@ -1629,6 +1703,7 @@ function undo() {
 }
 
 //redo
+document.getElementById("tb-redo").onclick = undo;
 document.getElementById("redo").onclick = redo;
 function redo() {
 	if (current_index < math_str.length-1) {
