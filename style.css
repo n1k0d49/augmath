@@ -40,6 +40,10 @@
 	margin-bottom:20px;
 }
 
-.eq_buttons {
+.eq_buttons, .his_buttons {
 	display: none;
+}
+
+#history_list * {
+	color: black;
 }

@@ -189,9 +189,10 @@ $("#make_json").on("click", function () {
 
 function add_equation(eq) {     
 	var eq_number = equations.push(eq)-1;
-	var eq_html = '<a class="list-group-item" onmouseover="$(this).children(\'div\').show()" onmouseout="$(this).children(\'div\').hide()"><p id="'+'eq'+eq_number.toString()+'" class="list-group-item">...</p><div class="eq_buttons"><br><button type="button" class="btn btn-default" onclick="prepare(equations['+eq_number.toString()+'])"><span class="glyphicon glyphicon-chevron-left"></span></button><button type="button" class="btn btn-default" onclick="$(this).parent().parent().remove()"><span class="glyphicon glyphicon-remove"></span></button></div></a>';
+	var eq_html = '<a class="list-group-item" onmouseover="$(this).stop().children(\'.eq_buttons\').show()" onmouseout="$(this).stop().children(\'.eq_buttons\').hide()"><p id="'+'eq'+eq_number.toString()+'" class="list-group-item">...</p><div class="eq_buttons"><br><button type="button" class="btn btn-default" onclick="prepare(equations['+eq_number.toString()+'])"><span class="glyphicon glyphicon-chevron-left"></span></button><button type="button" class="btn btn-default" onclick="$(this).parent().parent().remove()"><span class="glyphicon glyphicon-remove"></span></button>&nbsp;Latex:<input size="20" value="'+equations[+eq_number.toString()]+'"/></div></a>';
 	$("#eq_list").prepend(eq_html);     
-	var	eq_el = document.getElementById('eq'+eq_number.toString()); katex.render(equations[eq_number], eq_el, { displayMode: true }); }
+	var	eq_el = document.getElementById('eq'+eq_number.toString()); katex.render(equations[eq_number], eq_el, { displayMode: true }); 
+}
 
 $("#add_eq").keyup(function (e) {
     if (e.keyCode == 13) {
@@ -203,6 +204,31 @@ $("#keep").on("click", function () {
 	var eq = math_str_el.get()[0].value;
     add_equation(eq);
 });
+
+//HISTORY
+function select_in_history(index) {
+	current_index=index;
+	active_in_history(index);
+	prepare(math_str[index]);
+}
+function add_to_history(index, place) {
+	var his_html = '<a class="list-group-item" onmouseover="$(this).stop().children(\'.his_buttons\').show()" onmouseout="$(this).stop().children(\'.his_buttons\').hide()"><p id="'+'step'+index.toString()+'" class="list-group-item">...</p><div class="his_buttons"><br><button type="button" class="btn btn-default" onclick="select_in_history('+index.toString()+')"><span class="glyphicon glyphicon-chevron-left"></span></button>&nbsp;Latex:<input size="20" value="'+math_str[index.toString()]+'"/></div></a>';
+	if (place>-1) {
+		$("#history_list").children(":has(#step"+place+")").before(his_html);
+	} else {
+		$("#history_list").append(his_html);
+	}    
+	var	his_el = document.getElementById('step'+index.toString());
+	katex.render(math_str[index], his_el, { displayMode: true });
+}
+function active_in_history(index) {
+	$("#history_list").children().removeClass("active");
+	$("#step"+index.toString()).parent().addClass("active");
+}
+function remove_from_history(index) {
+	$("#step"+index.toString()).parent().remove();
+}
+
 
 //USEFUL FUNCTIONS
 
@@ -713,9 +739,14 @@ function prepare(math) {
 
 	if (!playing) {
 		if (current_index < math_str.length) {
+			remove_from_history(current_index);
 			math_str[current_index] = math;
+			add_to_history(current_index, current_index-1);
+			active_in_history(current_index);
 		} else {
 			current_index = math_str.push(math)-1;
+			add_to_history(current_index, current_index-1);
+			active_in_history(current_index);
 		}
 	}
 
@@ -1703,7 +1734,7 @@ function undo() {
 }
 
 //redo
-document.getElementById("tb-redo").onclick = undo;
+document.getElementById("tb-redo").onclick = redo;
 document.getElementById("redo").onclick = redo;
 function redo() {
 	if (current_index < math_str.length-1) {
