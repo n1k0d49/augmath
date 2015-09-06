@@ -369,6 +369,7 @@ function parse_mtstr(root, node_arr, str_arr) {
 					case "group":
 						factor_text = "(" + parse_mtstr(grandchild, node_arr, str_arr) + ")";
 						break;
+					case "diff":
 					case "frac":
 						frac_text[0] = parse_mtstr(grandchild.children[0], node_arr, str_arr);
 						frac_text[1] = parse_mtstr(grandchild.children[1], node_arr, str_arr);
@@ -451,23 +452,29 @@ function replace_in_mtstr(nodes, str_arr) {
 	return parse_mtstr(math_root, nodes, str_arr);
 }
 
-//evaluate an expression with Coffeeequate. An incomplete LaTeX to AsciiMath conversion is performed. Should complete it further
+//convert a string from LaTeX to the format used by CoffeeEquate
+function latex_to_ascii(str) {
+	str = str.replace(/\\sqrt\{([a-z0-9]+)\}/g, "($1)**0.5");
+	str = str.replace(/\}\{/g, ")/(").replace(/\\frac{/g, "(").replace(/\}/g, ")");
+	str = str.split("").join("*");
+	str = str.replace(/\*?\+\*?/g, "+")
+		.replace(/([0-9])\*([0-9])/g, "$1$2")
+		.replace(/\*?-\*?/g, "-")
+		.replace(/\*?=\*?/g, "=")
+		.replace(/\*?\(\*?/g, "(")
+		.replace(/\*?\)\*?/g, ")")
+		.replace(/\*?\/\*?/g, "/")
+		.replace(/\(\+/g, "(")
+		.replace(/\*\^\*\{\*([0-9]+)\)/g, "**$1")
+		.replace(/\^\*\{\*([0-9]+)\)/g, "**$1");
+	return str;
+}
+
+//evaluate an expression with Coffeeequate
 function eval_expression(expression) {
 	var new_term;
-	expression = expression.replace(/\\sqrt\{([a-z0-9]+)\}/g, "($1)**0.5");
-	expression = expression.replace(/\}\{/g, ")/(").replace(/\\frac{/g, "(").replace(/\}/g, ")");
+	expression = latex_to_ascii(expression)
 	if (expression.search(/[a-z]/) > -1) { //doesn't work with some expressions, as usual
-		expression = expression.split("").join("*");
-		expression = expression.replace(/\*?\+\*?/g, "+")
-								.replace(/\*?-\*?/g, "-")
-								.replace(/\*?=\*?/g, "=")
-								.replace(/\*?\(\*?/g, "(")
-								.replace(/\*?\)\*?/g, ")")
-								.replace(/\*?\/\*?/g, "/")
-								.replace(/\(\+/g, "(")
-								.replace(/\*\^\*\{\*([0-9]+)\)/g, "**$1")
-								.replace(/\^\*\{\*([0-9]+)\)/g, "**$1");
-		console.log("Expression is : " + expression);
 		try {
 			new_term = CQ(expression).simplify().toLaTeX().replace("\\cdot", ""); //removing cdot format
 		}
@@ -538,6 +545,24 @@ function get_next(nodes) {
 		if (node.model.id === new_id) {chosen_node = node; return false;}
 	});
 	return chosen_node;
+}
+
+//get all next nodes
+function get_all_next(node) {
+	var next_nodes = [];
+	var array = node.model.id.split("/");
+	var init = parseInt(array[array.length-1], 10);
+	var max = node.parent.children.length;
+	for (var i = init+1; i <= max; i++) {
+		array[array.length-1] = i;
+		var new_id = array.join("/");
+		var node;
+		math_root.walk(function (node1) {
+			if (node1.model.id === new_id) {node = node1; return false;}
+		});	
+		next_nodes.push(node);	
+	};
+	return next_nodes;
 }
 
 //does it have a visible sign?
@@ -645,21 +670,28 @@ function parse_poly(root, poly, parent_id, is_container) {
 		//deal with things with children, recursivelly.
 		if (factor_obj.is(":has(*)")) {
 			if (thing.is(".minner") || (thing.children(".mfrac").length !== 0 && thing.children(".mfrac").children(".vlist").children().length === 4)) {//fractions
-				factor.type2 = "frac";
-				denominator = thing.closest_n_descendents(".mord", 2).first();
-				nominator = thing.closest_n_descendents(".mord", 2).last();
-				child1 = tree.parse({id: factor_id + "/" + "1", obj: nominator});
-				child1.type = "nominator";
-				child2 = tree.parse({id: factor_id + "/" + "2", obj: denominator});
-				child2.type = "denominator";
-				factor.addChild(child1);
-				factor.addChild(child2);
-				//TEST = thing;
-				nom_str = parse_poly(child1, nominator, factor_id + "/" + "1", true);
-				child1.text = nom_str;
-				denom_str = parse_poly(child2, denominator, factor_id + "/" + "2", true);
-				child2.text = denom_str;
-				factor.text = "\\frac{" + nom_str + "}{" + denom_str + "}"
+				if (thing.text().search(/^\\frac{d}{d[a-z]}$/) !== 1) {
+					factor.type2 = "diff";
+					var variable = thing.closest_n_descendents(".mord", 2).first().children();
+					variable = variable.not(variable.first());
+					var var_str = parse_poly(factor, variable, factor_id + "/" + "1", false);
+					factor.text = "\\frac{d}{d" + var_str + "}";
+				} else {
+					factor.type2 = "frac";
+					denominator = thing.closest_n_descendents(".mord", 2).first();
+					nominator = thing.closest_n_descendents(".mord", 2).last();
+					child1 = tree.parse({id: factor_id + "/" + "1", obj: nominator});
+					child1.type = "nominator";
+					child2 = tree.parse({id: factor_id + "/" + "2", obj: denominator});
+					child2.type = "denominator";
+					factor.addChild(child1);
+					factor.addChild(child2);
+					nom_str = parse_poly(child1, nominator, factor_id + "/" + "1", true);
+					child1.text = nom_str;
+					denom_str = parse_poly(child2, denominator, factor_id + "/" + "2", true);
+					child2.text = denom_str;
+					factor.text = "\\frac{" + nom_str + "}{" + denom_str + "}";
+				}
 			} else if (thing.is(".sqrt")) {//square roots
 				factor.type2 = "sqrt";
 				inside = thing.find(".mord").first();
@@ -1628,6 +1660,41 @@ function eval() {
 		current_index++;
 		prepare(new_math_str);
 	});
+}
+
+//operate with an operator
+document.getElementById("operate").onclick = function() {
+	operate();
+	if (recording) {
+		manipulation_rec.push({manipulation:3});
+	}
+};
+document.getElementById("tb-operate").onclick = function() {
+	operate();
+	if (recording) {
+		manipulation_rec.push({manipulation:3});
+	}
+};
+function operate() {
+	if (selected_nodes.length === 1 && selected_nodes[0].type2 === "diff") {
+		var variable = selected_nodes[0].children[0].text;
+		var expression = "";
+		var next_nodes = get_all_next(selected_nodes[0]);
+		for (var i = 0; i < next_nodes.length; i++) {
+			expression+=next_nodes[i].text;
+		};
+		expression = latex_to_ascii(expression);
+		console.log(variable);
+		//IMPROVE ANIMATION (LOOK AT THE MECHANICAL UNIVERSE)
+		$selected.animate({"font-size": 0, opacity: 0}, step_duration).css('overflow', 'visible').promise().done(function() {
+			new_term = CQ(expression).differentiate(variable).toLaTeX().replace("\\cdot", "");
+			new_math_str = replace_in_mtstr(selected_nodes.concat(next_nodes), new_term);
+			current_index++;
+			prepare(new_math_str);
+		});
+	} else {
+		return;
+	}
 }
 
 //Append something to both sides
