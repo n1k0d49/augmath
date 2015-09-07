@@ -87,6 +87,7 @@ $("#recording").on("click", function () {
 		math_str_rec = [math_str[current_index]];
 		manipulation_rec.unshift({});
 		selected_nodes_id_rec.unshift([]);
+		active_in_history(current_index);
 	}
 });
 $("#play").on("click", function () {
@@ -125,43 +126,49 @@ $("#next_step").on("click", function () {
 	$selected.toggleClass("selected");
 	switch (manipulation_rec[recording_index].manipulation) {
   		case 1:
-  			change_side()
+  			change_side();
     		break;
     	case 2:
-  			divide_factor()
+  			move_up();
     		break;
     	case 3:
-  			eval()
+  			eval();
     		break;
     	case 4:
-  			move_right()
+  			move_right();
     		break;
     	case 5:
-  			move_left()
+  			move_left();
     		break;
     	case 6:
-  			root_power()
+  			move_down();
     		break;
     	case 7:
-  			add_both_sides(manipulation_rec[recording_index].arg)
+  			add_both_sides(manipulation_rec[recording_index].arg);
     		break;
     	case 8:
-  			push()
+  			split();
     		break;
     	case 9:
-  			unbracket()
+  			unbracket();
     		break;
     	case 10:
   			replace(manipulation_rec[recording_index].arg)
     		break;
     	case 11:
-  			remove()
+  			remove();
     		break;
     	case 12:
-  			distribute_in()
+  			distribute_in();
     		break;
     	case 13:
-  			pull()
+  			pull();
+    		break;
+    	case 14:
+  			operate();
+    		break;
+    	case 15:
+  			flip_equation();
     		break;
     	default:
     		break;
@@ -185,6 +192,10 @@ $("#make_json").on("click", function () {
 	console.log(JSON.stringify(manipulation_rec));
 });
 
+function add_to_manip_rec(integer, argument) {
+	manipulation_rec.push({manipulation:integer, arg:argument});
+}
+
 //EQUATIONS PANEL
 
 function add_equation(eq) {     
@@ -206,8 +217,40 @@ $("#keep").on("click", function () {
 });
 
 //HISTORY
+
+//undo
+document.getElementById("tb-undo").onclick = undo;
+document.getElementById("undo").onclick = undo;
+function undo() {
+	if (current_index > 0) {
+		if (recording_index > 0) {recording_index--;}
+		select_in_history(current_index-1);
+	}
+}
+
+//redo
+document.getElementById("tb-redo").onclick = redo;
+document.getElementById("redo").onclick = redo;
+function redo() {
+	if (current_index < math_str.length-1) {
+		if (recording_index < math_str_rec.length-1) {recording_index++;}
+		select_in_history(current_index++);
+	}
+}
+
 function select_in_history(index) {
-	current_index=index;
+	if (recording) {
+		recording_index-=(math_str.length-1-index);
+		math_str_rec = math_str_rec.slice(0, recording_index-1);
+		manipulation_rec = manipulation_rec.slice(0, recording_index-1);
+		selected_nodes_id_rec = selected_nodes_id_rec.slice(0, recording_index-1);
+		for (current_index; current_index > index; current_index--) {
+			$("#step"+current_index.toString()).parent().removeClass("recording-active");
+			$("#step"+current_index.toString()).parent().removeClass("recording");
+		}
+	} else {
+		current_index=index;
+	}
 	active_in_history(index);
 	prepare(math_str[index]);
 }
@@ -220,15 +263,25 @@ function add_to_history(index, place) {
 	}    
 	var	his_el = document.getElementById('step'+index.toString());
 	katex.render(math_str[index], his_el, { displayMode: true });
+	if (recording) {
+		$(his_el).parent().addClass("recording");
+	}
 }
 function active_in_history(index) {
 	$("#history_list").children().removeClass("active");
-	$("#step"+index.toString()).parent().addClass("active");
+	$("#history_list").children().removeClass("recording-active");
+	var cl;
+	if (recording) {
+		$("#step"+index.toString()).parent().addClass("recording");
+		cl = "recording-active";
+	} else {
+		cl = "active";
+	}
+	$("#step"+index.toString()).parent().addClass(cl);
 }
 function remove_from_history(index) {
 	$("#step"+index.toString()).parent().remove();
 }
-
 
 //USEFUL FUNCTIONS
 
@@ -788,7 +841,7 @@ function prepare(math) {
 			ids.push(selected_nodes[i].model.id);
 		}
 		selected_nodes_id_rec.push(ids);
-		math_str_rec.push(math_str.slice(-1));
+		math_str_rec.push(math);
 	}
 
 	var math_el = document.getElementById("math");
@@ -830,18 +883,12 @@ $(document).ready(function() {prepare(initial_math_str);});
 //MANIPULATIONS
 
 //change side
-document.getElementById("change_side").onclick = function() {
+function pre_change_side() {
 	change_side();
-	if (recording) {
-		manipulation_rec.push({manipulation:1});
-	}
+	if (recording) {add_to_manip_rec(1); recording_index++;}
 };
-document.getElementById("tb-change_side").onclick = function() {
-	change_side();
-	if (recording) {
-		manipulation_rec.push({manipulation:1});
-	}
-};
+document.getElementById("change_side").onclick = pre_change_side;
+document.getElementById("tb-change_side").onclick = pre_change_side;
 function change_side() {
 	var new_term;
 	equals_position = $equals.offset();
@@ -1033,18 +1080,12 @@ function change_side() {
 };
 
 //move term within expression, or factor within term
-document.getElementById("move_right").onclick = function() {
+function pre_move_right() {
 	move_right();
-	if (recording) {
-		manipulation_rec.push({manipulation:4});
-	}
+	if (recording) {add_to_manip_rec(4); recording_index++;}
 };
-document.getElementById("tb-move_right").onclick = function() {
-	move_right();
-	if (recording) {
-		manipulation_rec.push({manipulation:4});
-	}
-};
+document.getElementById("move_right").onclick = pre_move_right;
+document.getElementById("tb-move_right").onclick = pre_move_right;
 function move_right(){
 	if ($selected.next().filter(".mrel").length === 0) {
 		var include_op;
@@ -1072,18 +1113,12 @@ function move_right(){
 	}
 }
 
-document.getElementById("move_left").onclick = function() {
+function pre_move_left() {
 	move_left();
-	if (recording) {
-		manipulation_rec.push({manipulation:5});
-	}
+	if (recording) {add_to_manip_rec(5); recording_index++;}
 };
-document.getElementById("tb-move_left").onclick = function() {
-	move_left();
-	if (recording) {
-		manipulation_rec.push({manipulation:5});
-	}
-};
+document.getElementById("move_left").onclick = pre_move_left;
+document.getElementById("tb-move_left").onclick = pre_move_left;
 function move_left() {
 	if ($selected.prev().filter(".mrel").length === 0) {
 		var include_op;
@@ -1112,18 +1147,12 @@ function move_left() {
 }
 
 //move up and down in a fraction
-document.getElementById("move_up").onclick = function() {
+function pre_move_up() {
 	move_up();
-	if (recording) {
-		manipulation_rec.push({manipulation:5}); //change number
-	}
+	if (recording) {add_to_manip_rec(2); recording_index++;}
 };
-document.getElementById("tb-move_up").onclick = function() {
-	move_up();
-	if (recording) {
-		manipulation_rec.push({manipulation:5}); //change number
-	}
-};
+document.getElementById("move_up").onclick = pre_move_up;
+document.getElementById("tb-move_up").onclick = pre_move_up;
 function move_up() {
 	var same_parents = true, same_type = true;
 	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same type2
@@ -1175,18 +1204,12 @@ function move_up() {
 	}
 }
 
-document.getElementById("move_down").onclick = function() {
+function pre_move_down() {
 	move_down();
-	if (recording) {
-		manipulation_rec.push({manipulation:5}); //change number
-	}
+	if (recording) {add_to_manip_rec(6); recording_index++;}
 };
-document.getElementById("tb-move_down").onclick = function() {
-	move_down();
-	if (recording) {
-		manipulation_rec.push({manipulation:5}); //change number
-	}
-};
+document.getElementById("move_down").onclick = pre_move_down;
+document.getElementById("tb-move_down").onclick = pre_move_down;
 function move_down() {
 	var same_parents = true;
 	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same parent
@@ -1235,18 +1258,12 @@ function move_down() {
 }
 
 //splitting stuff
-document.getElementById("split").onclick = function() {
+function pre_split() {
 	split();
-	if (recording) {
-		manipulation_rec.split({manipulation:8});
-	}
+	if (recording) {add_to_manip_rec(8); recording_index++;}
 };
-document.getElementById("tb-split").onclick = function() {
-	split();
-	if (recording) {
-		manipulation_rec.split({manipulation:8});
-	}
-};
+document.getElementById("split").onclick = pre_split;
+document.getElementById("tb-split").onclick = pre_split;
 function split() {
 	var same_factor = true, same_grandparents = true, same_type2 = true, 
 		same_parents = true, same_type = true, same_ggparents = true;
@@ -1425,18 +1442,12 @@ function split() {
 }
 
 //merging stuff
-document.getElementById("merge").onclick = function() {
+function pre_merge() {
 	merge();
-	if (recording) {
-		manipulation_rec.merge({manipulation:13});
-	}
+	if (recording) {add_to_manip_rec(13); recording_index++;}
 };
-document.getElementById("tb-merge").onclick = function() {
-	merge();
-	if (recording) {
-		manipulation_rec.merge({manipulation:13});
-	}
-};
+document.getElementById("merge").onclick = pre_merge;
+document.getElementById("tb-merge").onclick = pre_merge;
 function merge() {
 	var same_parents = true, same_type = true, same_type2 = true, same_text = true, 
 	single_factor = true, are_fracs = true, same_term = true;
@@ -1623,9 +1634,7 @@ function merge() {
 //unbracket
 document.getElementById("unbracket").onclick = function() {
 	unbracket();
-	if (recording) {
-		manipulation_rec.push({manipulation:9});
-	}
+	if (recording) {add_to_manip_rec(9); recording_index++;}
 };
 function unbracket() {
 	//animation?
@@ -1637,18 +1646,12 @@ function unbracket() {
 }
 
 //evaulate simple sum or multiplication
-document.getElementById("eval").onclick = function() {
+function pre_eval() {
 	eval();
-	if (recording) {
-		manipulation_rec.push({manipulation:3});
-	}
+	if (recording) {add_to_manip_rec(3); recording_index++;}
 };
-document.getElementById("tb-eval").onclick = function() {
-	eval();
-	if (recording) {
-		manipulation_rec.push({manipulation:3});
-	}
-};
+document.getElementById("eval").onclick = pre_eval;
+document.getElementById("tb-eval").onclick = pre_eval;
 function eval() {
 	for (var i=0; i<selected_nodes.length-1; i++) { //making sure, all elements are of the same parent
 		if (selected_nodes[i].parent !== selected_nodes[i+1].parent) {return;}
@@ -1663,18 +1666,12 @@ function eval() {
 }
 
 //operate with an operator
-document.getElementById("operate").onclick = function() {
+function pre_operate() {
 	operate();
-	if (recording) {
-		manipulation_rec.push({manipulation:3});
-	}
+	if (recording) {add_to_manip_rec(14); recording_index++;}
 };
-document.getElementById("tb-operate").onclick = function() {
-	operate();
-	if (recording) {
-		manipulation_rec.push({manipulation:3});
-	}
-};
+document.getElementById("operate").onclick = pre_operate;
+document.getElementById("tb-operate").onclick = pre_operate;
 function operate() {
 	if (selected_nodes.length === 1 && selected_nodes[0].type2 === "diff") {
 		var variable = selected_nodes[0].children[0].text;
@@ -1702,9 +1699,7 @@ $("#add_both_sides").keyup(function (e) {
     if (e.keyCode == 13) {
     	var thing = $("#add_both_sides").get()[0].value;
         add_both_sides(thing);
-		if (recording) {
-			manipulation_rec.push({manipulation:7, arg:thing});
-		}
+		if (recording) {add_to_manip_rec(7, thing); recording_index++;}
     }
 });
 function add_both_sides(thing) {
@@ -1719,9 +1714,7 @@ $("#replace").keyup(function (e) {
     if (e.keyCode == 13) {
     	var thing = $("#replace").get()[0].value;
         replace(thing);
-		if (recording) {
-			manipulation_rec.push({manipulation:10, arg:thing});
-		}
+		if (recording) {add_to_manip_rec(10, thing); recording_index++;}
     }
 });
 function replace(text) {
@@ -1747,9 +1740,7 @@ function replace(text) {
 //remove something. Used for: cancelling something on both sides, or cancelling something on a fraction, among other things
 document.getElementById("remove").onclick = function() {
 	remove();
-	if (recording) {
-		manipulation_rec.push({manipulation:11});
-	}
+	if (recording) {add_to_manip_rec(11); recording_index++;}
 };
 function remove() {
 	$selected.animate({"font-size": 0, opacity: 0}, step_duration)
@@ -1763,18 +1754,12 @@ function remove() {
 }
 
 //flip equation
-document.getElementById("flip_equation").onclick = function() {
+function pre_flip_equation() {
 	flip_equation();
-	if (recording) {
-		manipulation_rec.push({manipulation:14});
-	}
+	if (recording) {add_to_manip_rec(15); recording_index++;}
 };
-document.getElementById("tb-flip_equation").onclick = function() {
-	flip_equation();
-	if (recording) {
-		manipulation_rec.push({manipulation:14});
-	}
-};
+document.getElementById("flip_equation").onclick = pre_flip_equation;
+document.getElementById("tb-flip_equation").onclick = pre_flip_equation;
 function flip_equation() {
 	var offset1 = tot_width($equals.prevAll(), true, false) + tot_width($equals, true, false);
 	var offset2 = tot_width($equals.nextAll(), true, false) + tot_width($equals, true, false);
@@ -1787,25 +1772,4 @@ function flip_equation() {
 		current_index++;
 		prepare(new_math_str);
 	});
-}
-
-//HISTORY
-//undo
-document.getElementById("tb-undo").onclick = undo;
-document.getElementById("undo").onclick = undo;
-function undo() {
-	if (current_index > 0) {
-		current_index--;
-		prepare(math_str[current_index]);
-	}
-}
-
-//redo
-document.getElementById("tb-redo").onclick = redo;
-document.getElementById("redo").onclick = redo;
-function redo() {
-	if (current_index < math_str.length-1) {
-		current_index++;
-		prepare(math_str[current_index]);
-	}
 }
