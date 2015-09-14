@@ -638,6 +638,9 @@ function parse_mtstr(root, node_arr, str_arr) {
 
 //do some preparation to str_arr before calling parse_mtstr
 function replace_in_mtstr(nodes, str_arr) {
+	if (nodes.__proto__.length !== 0) {
+		nodes = [nodes];
+	}
 	if (typeof str_arr === "string") {
 		var str = str_arr;
 		str_arr = [];
@@ -746,7 +749,7 @@ function parse_poly(root, poly, parent_id, is_container) {
 		//deal with things with children, recursivelly.
 		if (factor_obj.is(":has(*)")) {
 			if (thing.is(".minner") || (thing.children(".mfrac").length !== 0 && thing.children(".mfrac").children(".vlist").children().length === 4)) {//fractions
-				if (thing.text().search(/^\\frac{d}{d[a-z]}$/) !== 1) {
+				if (thing.text().search(/^\\frac\{d\}\{d[a-z]\}$/) === 1) {
 					factor.type2 = "diff";
 					var variable = thing.closest_n_descendents(".mord", 2).first().children();
 					variable = variable.not(variable.first());
@@ -774,14 +777,14 @@ function parse_poly(root, poly, parent_id, is_container) {
 				factor.text = "\\sqrt{" + parse_poly(factor, inside, factor_id, true) + "}";
 			} else if (thing.is(":has(.vlist)") && !thing.is(".accent") && thing.children(".mfrac").length === 0 && thing.children(".op-symbol").length === 0) {//exponentials
 				base_obj = thing.find(".mord").first();
-				power_obj = thing.find(".vlist").first();
-				inside = power_obj.find(".mord").first();
+				power_obj = thing.closest_n_descendents(".vlist", 1);
+				var inside2 = power_obj.find(".mord").first();
 				base = tree.parse({id: factor_id + "/" + "1", obj: base_obj});
 				base.type = "base";
-				base.text = base_obj.text();
+				base.text = parse_poly(base, base_obj, factor_id + "/" + "1", false);
 				power = tree.parse({id: factor_id + "/" + "2", obj: power_obj});
 				power.type = "power";
-				power.text = parse_poly(power, inside, factor_id + "/" + "2", true);
+				power.text = parse_poly(power, inside2, factor_id + "/" + "2", true);
 				factor.addChild(base);
 				factor.addChild(power);
 				factor.type2 = "exp";
@@ -857,11 +860,30 @@ function parse_poly(root, poly, parent_id, is_container) {
 function prepare(math) {
 
 	math = math.replace(/\\frac{}/g, "\\frac{1}")
-				.replace(/\\frac{([ -~]+)}{}/g, "$1")
 				.replace(/=$/, "=0")
+				.replace(/0\+/g, "")
+				.replace(/0-/g, "")
 				.replace(/^=/, "0=")
 				.replace(/\^{}/g, "")
 				.replace(/\+/g, '--').replace(/(--)+-/g, '-').replace(/--/g, '+');
+
+	var math_el = document.getElementById("math");
+	katex.render(math, math_el, { displayMode: true });
+	math_str_el.val(math);
+
+	var root_poly = $("#math .base");
+
+	tree = new TreeModel();
+
+	math_root = tree.parse({});
+	math_root.model.id = "0";
+	//KaTeX offers MathML semantic elements on the HTML, could that be used?
+	
+	parse_poly(math_root, root_poly, 0, true);
+
+	math_root.walk(function (node) {
+		if (node.type2 === "frac" && node.children[1].text === "") {prepare(replace_in_mtstr(node, node.children[0].text));}
+	});
 
 	if (!playing) {
 		if (current_index < math_str.length) {
@@ -884,20 +906,6 @@ function prepare(math) {
 		selected_nodes_id_rec.push(ids);
 		math_str_rec.push(math);
 	}
-
-	var math_el = document.getElementById("math");
-	katex.render(math, math_el, { displayMode: true });
-	math_str_el.val(math_str[current_index]);
-
-	var root_poly = $("#math .base");
-
-	tree = new TreeModel();
-
-	math_root = tree.parse({});
-	math_root.model.id = "0";
-	//KaTeX offers MathML semantic elements on the HTML, could that be used?
-	
-	parse_poly(math_root, root_poly, 0, true);
 
 	create_events(manip, depth);
 
@@ -1213,6 +1221,9 @@ function move_up() {
 				case "frac":
 					new_nom_text+="(" + selected_nodes[i].text + ")" + "^{-1}";
 					break;
+				case "sqrt":
+					new_nom_text+=selected_nodes[i].text.slice(6, -1) + "^{-\\frac{1}{2}}"
+					break;
 				default:
 					new_nom_text+=selected_nodes[i].text + "^{-1}";
 			}
@@ -1321,21 +1332,17 @@ function split() {
 	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same type
 		if (selected_nodes[i].type !== selected_nodes[i+1].type) {same_type = false}
 	}
-	if (selected_nodes[0].type === "factor" && same_type && same_parents) { //distribute in
-		var grouped = [];
-		var factors_text = "";
-		for (var i=0; i<selected_nodes.length; i++) {//making sure all elemnts are of the same type
-			if (selected_nodes[i].type2 === "group") {
-				grouped.push(selected_nodes[i]);
-			} else {
-				factors_text+=selected_nodes[i].text;
-			}
-		}
-		if (grouped.length === 1) {
-			var grouped_node = grouped[0];
+	var grouped = [];
+	for (var i=0; i<selected_nodes.length; i++) {//identifying grouped element
+		if (selected_nodes[i].type2 === "group") {
+			grouped.push(selected_nodes[i]);
 		} else {
-			return;
+			factors_text+=selected_nodes[i].text;
 		}
+	}
+	if (selected_nodes[0].type === "factor" && same_type && same_parents && grouped.length === 1) { //distribute in
+		var factors_text = "";
+		var grouped_node = grouped[0];
 		$selected.animate({"font-size": 0, opacity: 0}, step_duration) //IMPROVE ANIMATION (FOR EXAMPLE CLONE)
 	    .css('overflow', 'visible')
 	    .promise()
@@ -1383,12 +1390,12 @@ function split() {
 		var factors = selected_nodes[0].children[0].children;
 		var text = "";
 		for (var i=0; i<factors.length; i++) {
-	    		text+="\\sqrt{" + factors[i].text + "}";
-	    	}
+	    	text+="\\sqrt{" + factors[i].text + "}";
+	    }
 		new_math_str = replace_in_mtstr(selected_nodes, text);
 		current_index++;
 		prepare(new_math_str); //split square root. Need to make it work with fractions
-	} else if (selected_nodes[i].children[0] !== undefined && selected_nodes.length === 1  && selected_nodes[0].children[0].children.length === 1 
+	} else if (selected_nodes[0].children[0] !== undefined && selected_nodes.length === 1  && selected_nodes[0].children[0].children.length === 1 
 		&& (selected_nodes[0].type2 === "exp" || selected_nodes[0].type2 === "group_exp")) {
 		//ANIMATION?
 		var power_text = selected_nodes[0].children[1].text;
@@ -1445,24 +1452,25 @@ function split() {
 			}
 		}
 		if (denominator_text !== "" && denominator_text !== selected_nodes[0].parent.parent.parent.children[1].text) {
-				if (!(selected_nodes[0].parent.parent.parent.children[1].children.length === 1)) {
-					return;
-				} else {
-					var denominator_factors = selected_nodes[0].parent.parent.parent.children[1].children[0].children;
-					for (var j=0; j<denominator_factors.length; j++) {
-						do_continue = false;
-						for (var k=0; k<selected_nodes.length; k++) {
-							if (denominator_factors[j].model.id === selected_nodes[k].model.id) {do_continue = true;}
-						}
-						if (do_continue) {continue;}
-						denominator_text2+=denominator_factors[j].text;
+			if (!(selected_nodes[0].parent.parent.parent.children[1].children.length === 1)) {
+				return;
+			} else {
+				var denominator_factors = selected_nodes[0].parent.parent.parent.children[1].children[0].children;
+				for (var j=0; j<denominator_factors.length; j++) {
+					do_continue = false;
+					for (var k=0; k<selected_nodes.length; k++) {
+						if (denominator_factors[j].model.id === selected_nodes[k].model.id) {do_continue = true;}
 					}
+					console.log(denominator_factors);
+					if (do_continue) {continue;}
+					denominator_text2+=denominator_factors[j].text;
 				}
-			} else if (denominator_text === "") {
-				denominator_text2 = selected_nodes[0].parent.parent.parent.children[1].text;
-			} else if (denominator_text === selected_nodes[0].parent.parent.parent.children[1].text) {
-				denominator_text2 = ""
 			}
+		} else if (denominator_text === "") {
+			denominator_text2 = selected_nodes[0].parent.parent.parent.children[1].text;
+		} else if (denominator_text === selected_nodes[0].parent.parent.parent.children[1].text) {
+			denominator_text2 = "";
+		}
 		var new_text = "\\frac{" + nominator_text + "}{" + denominator_text + "}" + "\\frac{" + nominator_text2 + "}{" + denominator_text2 + "}";
 		new_math_str = replace_in_mtstr([selected_nodes[0].parent.parent.parent], new_text);
 		current_index++;
