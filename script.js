@@ -57,7 +57,9 @@ manip_el.on("change", function () {
 		|| manip === "available" 
 		|| manip === "chosen" 
 		|| manip === "nominator" 
-		|| manip === "denominator") {
+		|| manip === "denominator"
+		|| manip === "sup"
+		|| manip === "sub") {
 		depth_el[0].value = "3";
 		remove_events(manip, depth); 
 		depth = parseInt(depth_el[0].value, 10); 
@@ -95,15 +97,13 @@ $("#play").on("click", function () {
 	document.getElementById("recording").checked = false;
 	recording = document.getElementById("recording").checked;
 	recording_index = 0;
-	math_str = [math_str_rec[recording_index]];
-	current_index = 0;
-	prepare(math_str[current_index]);
+	if (math_str.length === 0 && math_str_rec.length !== 0) {math_str = math_str_rec;}
+	init_index = math_str.length-math_str_rec.length;
+	select_in_history(init_index);
+	recording_index++; //recording_index will always be one ahead of the current math_str displayed as that is the appropriate manipulation to apply.
 });
 $("#next_step").on("click", function () {
-	if (recording_index>selected_nodes_id_rec.length-2) {return;}
-	recording_index++;
-	math_str = [math_str_rec[recording_index]];
-	current_index = 0;
+	if (recording_index>selected_nodes_id_rec.length-1) {return;}
 	selected_nodes = [];
 	$selected = $();
 	var ids = selected_nodes_id_rec[recording_index];
@@ -178,9 +178,7 @@ $("#next_step").on("click", function () {
 $("#prev_step").on("click", function () {//FIX THIS
 	if (!(recording_index>0)) {return;}
 	recording_index--;
-	math_str = [math_str_rec[recording_index]];
-	current_index = math_str.length-1;
-	prepare(math_str[current_index]);
+	select_in_history(init_index+recording_index);
 });
 
 $("#make_json").on("click", function () {
@@ -372,138 +370,6 @@ function cleanIndices(arr, str) {
 	}
 	return arr;
 }
-//create a LaTeX string from a tree, and substitute the text of node_arr with that contained in str_arr. Useful for manipulations
-function parse_mtstr(root, node_arr, str_arr) {
-	var poly_str = "";
-	var i = 0, j = 0;
-	//console.log(node_arr);
-	while (i < root.children.length) {
-		var term_text="";
-		var child = root.children[i];
-		//console.log("child")
-		//console.log(child);
-		node_selected = false;
-		for (var k=0; k<node_arr.length; k++) {
-			if (child.model.id === node_arr[k].model.id) {
-				node_selected = true;
-				term_text = str_arr[k];
-				break;
-			}
-		}
-		if (node_selected) {i++; poly_str+=term_text; continue;}
-		//console.log(child.children);
-		j = 0;
-		while (j < child.children.length) {
-			var factor_text="";
-			var frac_text = [], exp_text = [], binom_text = [];
-			var grandchild = child.children[j];
-			//console.log("grandchild");
-			//console.log(grandchild);
-			node_selected = false;
-			for (var k=0; k<node_arr.length; k++) {
-				if (grandchild.model.id === node_arr[k].model.id) {
-					node_selected = true;
-					factor_text = str_arr[k];
-					break;
-				}
-			}
-			if (node_selected) {j++; term_text+=factor_text; continue;}
-			if (grandchild.type === "rel") {
-				poly_str+=grandchild.text;
-			} else if (grandchild.type === "op") {
-				term_text+=grandchild.text;
-			} else if (grandchild.type === "text") {
-				term_text+="\\text{" + grandchild.text.replace(/[^\x00-\x7F]/g, " ") + "}"; //change strange whitespaces to standard whitespace
-			} else {
-				switch (grandchild.type2) {
-					case "normal":
-						factor_text+=grandchild.text;
-						break;
-					case "group":
-						factor_text = "(" + parse_mtstr(grandchild, node_arr, str_arr) + ")";
-						break;
-					case "diff":
-					case "frac":
-						frac_text[0] = parse_mtstr(grandchild.children[0], node_arr, str_arr);
-						frac_text[1] = parse_mtstr(grandchild.children[1], node_arr, str_arr);
-						for (var l=0; l<2; l++) {
-							for (var k=0; k<node_arr.length; k++) {
-								if (grandchild.children[l].model.id === node_arr[k].model.id) {
-									frac_text[l] = str_arr[k];
-									break;
-								}
-							}
-						}
-						factor_text = "\\frac{" + frac_text[0] + "}{" + frac_text[1] + "}"
-						break;
-					case "binom":
-						binom_text[0] = parse_mtstr(grandchild.children[0], node_arr, str_arr);
-						binom_text[1] = parse_mtstr(grandchild.children[1], node_arr, str_arr);
-						for (var l=0; l<2; l++) {
-							for (var k=0; k<node_arr.length; k++) {
-								if (grandchild.children[l].model.id === node_arr[k].model.id) {
-									binom_text[l] = str_arr[k];
-									break;
-								}
-							}
-						}
-						factor_text = "\\binom{" + binom_text[0] + "}{" + binom_text[1] + "}"
-						break;
-					case "sqrt":
-						factor_text = "\\sqrt{" + parse_mtstr(grandchild, node_arr, str_arr) + "}";
-						break;
-					case "exp":
-						exp_text[0] = grandchild.children[0].text;
-						exp_text[1] = parse_mtstr(grandchild.children[1], node_arr, str_arr);
-						for (var l=0; l<2; l++) {
-							for (var k=0; k<node_arr.length; k++) {
-								if (grandchild.children[l].model.id === node_arr[k].model.id) {
-									exp_text[l] = str_arr[k];
-									break;
-								}
-							}
-						}
-						factor_text = exp_text[0] + "^{" + exp_text[1] + "}";
-						break;
-					case "group_exp":
-						exp_text[0] = parse_mtstr(grandchild.children[0], node_arr, str_arr);
-						exp_text[1] = parse_mtstr(grandchild.children[1], node_arr, str_arr);
-						//console.log(grandchild.children);
-						for (var l=0; l<2; l++) {
-							for (var k=0; k<node_arr.length; k++) {
-								if (grandchild.children[l].model.id === node_arr[k].model.id) {
-									exp_text[l] = str_arr[k];
-									break;
-								}
-							}
-						}
-						factor_text = "(" + exp_text[0] + ")" + "^{" + exp_text[1] + "}";
-						break;
-				}
-				term_text+=factor_text;
-			}
-			j++;
-		};
-		i++;
-		poly_str+=term_text;
-		//console.log(poly_str);
-	};
-
-	return poly_str;
-}
-
-//do some preparation to str_arr before calling parse_mtstr
-function replace_in_mtstr(nodes, str_arr) {
-	if (typeof str_arr === "string") {
-		var str = str_arr;
-		str_arr = [];
-		for (i=0; i<nodes.length; i++) {
-			if (i === 0) {str_arr.push(str);}
-			else {str_arr.push("");}
-		}
-	}
-	return parse_mtstr(math_root, nodes, str_arr);
-}
 
 //convert a string from LaTeX to the format used by CoffeeEquate
 function latex_to_ascii(str) {
@@ -627,7 +493,164 @@ function has_op(obj) {
 	}
 }
 
+// TREE -> LATEX. Create a LaTeX string from a tree, and substitute the text of node_arr with that contained in str_arr. Useful for manipulations
+function parse_mtstr(root, node_arr, str_arr) {
+	var poly_str = "";
+	var i = 0, j = 0;
+	//console.log(node_arr);
+	while (i < root.children.length) {
+		var term_text="";
+		var child = root.children[i];
+		//console.log("child")
+		//console.log(child);
+		node_selected = false;
+		for (var k=0; k<node_arr.length; k++) {
+			if (child.model.id === node_arr[k].model.id) {
+				node_selected = true;
+				term_text = str_arr[k];
+				break;
+			}
+		}
+		if (node_selected) {i++; poly_str+=term_text; continue;}
+		//console.log(child.children);
+		j = 0;
+		while (j < child.children.length) {
+			var factor_text="";
+			var frac_text = [], exp_text = [], binom_text = [], diff_text = "", int_text = [];
+			var grandchild = child.children[j];
+			//console.log("grandchild");
+			//console.log(grandchild);
+			node_selected = false;
+			for (var k=0; k<node_arr.length; k++) {
+				if (grandchild.model.id === node_arr[k].model.id) {
+					node_selected = true;
+					factor_text = str_arr[k];
+					break;
+				}
+			}
+			if (node_selected) {j++; term_text+=factor_text; continue;}
+			if (grandchild.type === "rel") {
+				poly_str+=grandchild.text;
+			} else if (grandchild.type === "op") {
+				term_text+=grandchild.text;
+			} else if (grandchild.type === "text") {
+				term_text+="\\text{" + grandchild.text.replace(/[^\x00-\x7F]/g, " ") + "}"; //change strange whitespaces to standard whitespace
+			} else {
+				switch (grandchild.type2) {
+					case "normal":
+						factor_text+=grandchild.text;
+						break;
+					case "group":
+						factor_text = "(" + parse_mtstr(grandchild, node_arr, str_arr) + ")";
+						break;
+					case "diff":
+					case "frac":
+						frac_text[0] = parse_mtstr(grandchild.children[0], node_arr, str_arr);
+						frac_text[1] = parse_mtstr(grandchild.children[1], node_arr, str_arr);
+						for (var l=0; l<2; l++) {
+							for (var k=0; k<node_arr.length; k++) {
+								if (grandchild.children[l].model.id === node_arr[k].model.id) {
+									frac_text[l] = str_arr[k];
+									break;
+								}
+							}
+						}
+						factor_text = "\\frac{" + frac_text[0] + "}{" + frac_text[1] + "}";
+						break;
+					case "diff":
+						diff_text = parse_mtstr(grandchild.children[0], node_arr, str_arr);
+						for (var k=0; k<node_arr.length; k++) {
+							if (grandchild.children[0].model.id === node_arr[k].model.id) {
+								frac_text[0] = str_arr[k];
+								break;
+							}
+						}
+						factor_text = "\\frac{d}{d" + diff_text + "}"
+						break;
+					case "binom":
+						binom_text[0] = parse_mtstr(grandchild.children[0], node_arr, str_arr);
+						binom_text[1] = parse_mtstr(grandchild.children[1], node_arr, str_arr);
+						for (var l=0; l<2; l++) {
+							for (var k=0; k<node_arr.length; k++) {
+								if (grandchild.children[l].model.id === node_arr[k].model.id) {
+									binom_text[l] = str_arr[k];
+									break;
+								}
+							}
+						}
+						factor_text = "\\binom{" + binom_text[0] + "}{" + binom_text[1] + "}"
+						break;
+					case "int":
+						int_text[0] = parse_mtstr(grandchild.children[0], node_arr, str_arr);
+						int_text[1] = parse_mtstr(grandchild.children[1], node_arr, str_arr);
+						for (var l=0; l<2; l++) {
+							for (var k=0; k<node_arr.length; k++) {
+								if (grandchild.children[l].model.id === node_arr[k].model.id) {
+									int_text[l] = str_arr[k];
+									break;
+								}
+							}
+						}
+						factor_text = "\\int_{" + int_text[1] + "}^{" + int_text[0] + "}"
+						break;
+					case "sqrt":
+						factor_text = "\\sqrt{" + parse_mtstr(grandchild, node_arr, str_arr) + "}";
+						break;
+					case "exp":
+						exp_text[0] = grandchild.children[0].text;
+						exp_text[1] = parse_mtstr(grandchild.children[1], node_arr, str_arr);
+						for (var l=0; l<2; l++) {
+							for (var k=0; k<node_arr.length; k++) {
+								if (grandchild.children[l].model.id === node_arr[k].model.id) {
+									exp_text[l] = str_arr[k];
+									break;
+								}
+							}
+						}
+						factor_text = exp_text[0] + "^{" + exp_text[1] + "}";
+						break;
+					case "group_exp":
+						exp_text[0] = parse_mtstr(grandchild.children[0], node_arr, str_arr);
+						exp_text[1] = parse_mtstr(grandchild.children[1], node_arr, str_arr);
+						//console.log(grandchild.children);
+						for (var l=0; l<2; l++) {
+							for (var k=0; k<node_arr.length; k++) {
+								if (grandchild.children[l].model.id === node_arr[k].model.id) {
+									exp_text[l] = str_arr[k];
+									break;
+								}
+							}
+						}
+						factor_text = "(" + exp_text[0] + ")" + "^{" + exp_text[1] + "}";
+						break;
+				}
+				term_text+=factor_text;
+			}
+			j++;
+		};
+		i++;
+		poly_str+=term_text;
+		//console.log(poly_str);
+	};
+
+	return poly_str;
+}
+
+//do some preparation to str_arr before calling parse_mtstr
+function replace_in_mtstr(nodes, str_arr) {
+	if (typeof str_arr === "string") {
+		var str = str_arr;
+		str_arr = [];
+		for (i=0; i<nodes.length; i++) {
+			if (i === 0) {str_arr.push(str);}
+			else {str_arr.push("");}
+		}
+	}
+	return parse_mtstr(math_root, nodes, str_arr);
+}
+
 //MANIPULATIVES
+//HTML -> TREE
 //This creates a tree by going through the terms in an expression, and going through its factors. Factors that can contain whole expressions within them are then recursively analyzed in the same way.
 //This is tied to the way KaTeX renders maths. A good thing would be to do this for MathML, as it's likely to be a standard in the future.
 function parse_poly(root, poly, parent_id, is_container) {
@@ -727,7 +750,7 @@ function parse_poly(root, poly, parent_id, is_container) {
 					factor.type2 = "diff";
 					var variable = thing.closest_n_descendents(".mord", 2).first().children();
 					variable = variable.not(variable.first());
-					var var_str = parse_poly(factor, variable, factor_id + "/" + "1", false);
+					var var_str = parse_poly(factor, variable, factor_id, false);
 					factor.text = "\\frac{d}{d" + var_str + "}";
 				} else {
 					factor.type2 = "frac";
@@ -749,7 +772,7 @@ function parse_poly(root, poly, parent_id, is_container) {
 				factor.type2 = "sqrt";
 				inside = thing.find(".mord").first();
 				factor.text = "\\sqrt{" + parse_poly(factor, inside, factor_id, true) + "}";
-			} else if (thing.is(":has(.vlist)") && !thing.is(".accent") && thing.children(".mfrac").length === 0) {//exponentials
+			} else if (thing.is(":has(.vlist)") && !thing.is(".accent") && thing.children(".mfrac").length === 0 && thing.children(".op-symbol").length === 0) {//exponentials
 				base_obj = thing.find(".mord").first();
 				power_obj = thing.find(".vlist").first();
 				inside = power_obj.find(".mord").first();
@@ -798,6 +821,24 @@ function parse_poly(root, poly, parent_id, is_container) {
 				denom_str = parse_poly(child2, denominator, factor_id + "/" + "2", true);
 				child2.text = denom_str;
 				factor.text = "\\binom{" + nom_str + "}{" + denom_str + "}"
+			} else if (thing.is(":has(.vlist)") && thing.children(".op-symbol").length !== 0) {//operator
+				if (thing.children().first().text() === "∫") {//integral
+					factor.type2 = "int";
+					var upper_limit = thing.children().last().closest_n_descendents(".mord", 2).last();
+					var lower_limit = thing.children().last().closest_n_descendents(".mord", 2).first();
+					child1 = tree.parse({id: factor_id + "/" + "1", obj: upper_limit});
+					child1.type = "sup";
+					child2 = tree.parse({id: factor_id + "/" + "2", obj: lower_limit});
+					child2.type = "sub";
+					factor.addChild(child1);
+					factor.addChild(child2);
+					up_str = parse_poly(child1, upper_limit, factor_id + "/" + "1", true);
+					child1.text = up_str;
+					low_str = parse_poly(child2, lower_limit, factor_id + "/" + "2", true);
+					child2.text = low_str;
+					factor.text = "\\int_{" + low_str + "}^{" + up_str + "}"
+				}
+
 			}
 			factor_text = factor.text;
 		}
@@ -827,13 +868,13 @@ function prepare(math) {
 			remove_from_history(current_index);
 			math_str[current_index] = math;
 			add_to_history(current_index, current_index-1);
-			active_in_history(current_index);
 		} else {
 			current_index = math_str.push(math)-1;
 			add_to_history(current_index, current_index-1);
-			active_in_history(current_index);
 		}
 	}
+
+	active_in_history(current_index);
 
 	if (recording) {
 		var ids = [];
@@ -883,12 +924,8 @@ $(document).ready(function() {prepare(initial_math_str);});
 //MANIPULATIONS
 
 //change side
-function pre_change_side() {
-	change_side();
-	if (recording) {add_to_manip_rec(1); recording_index++;}
-};
-document.getElementById("change_side").onclick = pre_change_side;
-document.getElementById("tb-change_side").onclick = pre_change_side;
+document.getElementById("change_side").onclick = change_side;
+document.getElementById("tb-change_side").onclick = change_side;
 function change_side() {
 	var new_term;
 	equals_position = $equals.offset();
@@ -900,11 +937,12 @@ function change_side() {
 	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same parent
 		if (selected_nodes[i].parent !== selected_nodes[i+1].parent) {return;}
 	}
-	if (selected_nodes[0].parent === math_root) {
+	if (selected_nodes[0].parent === math_root) { //terms
 		var selected_width = tot_width($selected, true, true);
 		if ($selected.prevAll(".mrel").length === 0) { //before eq sign
 			offset = (end_of_equation.left-selected_position.left);
 			$selected.first().prevAll().animate({left:selected_width}, step_duration);
+			$selected = $(".selected").add($(".selected").filter(".mop").children());
 			$selected.animate({left:offset}, step_duration).promise().done(function() {
 				$selected = $(".selected").add($(".selected").find("*"));
 				new_term = change_sign(selected_nodes);
@@ -917,6 +955,7 @@ function change_side() {
 			offset = (equals_position.left-selected_position.left)-tot_width($selected, true, false);
 			$selected.prevAll(".mrel").first().prevAll().animate({left:-selected_width}, step_duration);
 			$selected.last().nextAll().animate({left:-tot_width($selected, true, false)}, step_duration);
+			$selected = $(".selected").add($(".selected").filter(".mop").children());
 			$selected.animate({left:offset}, step_duration).promise().done(function() {
 				$selected = $(".selected").add($(".selected").find("*"));
 				new_term = change_sign(selected_nodes);
@@ -932,7 +971,7 @@ function change_side() {
 			&& (($selected.prevAll(".mrel").length !== 0 
 					&& get_prev([math_root.children[math_root.children.length-1]]).children[0].type === "rel")
 				|| ($selected.prevAll(".mrel").length === 0 
-					&& get_next([math_root.children[0]]).children[0].type === "rel"))) {
+					&& get_next([math_root.children[0]]).children[0].type === "rel"))) { //factors
 		if (selected_nodes[0].model.id.split("/")[1] < equals_node.model.id.split("/")[1]) { //before eq sign
 			RHS_width = tot_width($equals.nextAll(), false, false);
 			var after_eq = false, after_eq_nodes=[];
@@ -1076,16 +1115,14 @@ function change_side() {
 			prepare(new_math_str);
 		});
 	}
-	} 
+	}
+	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(1);}
 };
 
 //move term within expression, or factor within term
-function pre_move_right() {
-	move_right();
-	if (recording) {add_to_manip_rec(4); recording_index++;}
-};
-document.getElementById("move_right").onclick = pre_move_right;
-document.getElementById("tb-move_right").onclick = pre_move_right;
+document.getElementById("move_right").onclick = move_right;
+document.getElementById("tb-move_right").onclick = move_right;
 function move_right(){
 	if ($selected.next().filter(".mrel").length === 0) {
 		var include_op;
@@ -1111,14 +1148,12 @@ function move_right(){
 			prepare(new_math_str);
 		});
 	}
+	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(4);}
 }
 
-function pre_move_left() {
-	move_left();
-	if (recording) {add_to_manip_rec(5); recording_index++;}
-};
-document.getElementById("move_left").onclick = pre_move_left;
-document.getElementById("tb-move_left").onclick = pre_move_left;
+document.getElementById("move_left").onclick = move_left;
+document.getElementById("tb-move_left").onclick = move_left;
 function move_left() {
 	if ($selected.prev().filter(".mrel").length === 0) {
 		var include_op;
@@ -1144,15 +1179,13 @@ function move_left() {
 			prepare(new_math_str);
 		});
 	}
+	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(5);}
 }
 
 //move up and down in a fraction
-function pre_move_up() {
-	move_up();
-	if (recording) {add_to_manip_rec(2); recording_index++;}
-};
-document.getElementById("move_up").onclick = pre_move_up;
-document.getElementById("tb-move_up").onclick = pre_move_up;
+document.getElementById("move_up").onclick = move_up;
+document.getElementById("tb-move_up").onclick = move_up;
 function move_up() {
 	var same_parents = true, same_type = true;
 	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same type2
@@ -1202,14 +1235,12 @@ function move_up() {
 			prepare(new_math_str);
 		});
 	}
+	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(2);}
 }
 
-function pre_move_down() {
-	move_down();
-	if (recording) {add_to_manip_rec(6); recording_index++;}
-};
-document.getElementById("move_down").onclick = pre_move_down;
-document.getElementById("tb-move_down").onclick = pre_move_down;
+document.getElementById("move_down").onclick = move_down;
+document.getElementById("tb-move_down").onclick = move_down;
 function move_down() {
 	var same_parents = true;
 	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same parent
@@ -1255,15 +1286,13 @@ function move_down() {
 			prepare(new_math_str);
 		});
 	}
+	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(6);}
 }
 
 //splitting stuff
-function pre_split() {
-	split();
-	if (recording) {add_to_manip_rec(8); recording_index++;}
-};
-document.getElementById("split").onclick = pre_split;
-document.getElementById("tb-split").onclick = pre_split;
+document.getElementById("split").onclick = split;
+document.getElementById("tb-split").onclick = split;
 function split() {
 	var same_factor = true, same_grandparents = true, same_type2 = true, 
 		same_parents = true, same_type = true, same_ggparents = true;
@@ -1439,15 +1468,13 @@ function split() {
 		current_index++;
 		prepare(new_math_str); //split factors out of a fraction
 	}
+	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(8);}
 }
 
 //merging stuff
-function pre_merge() {
-	merge();
-	if (recording) {add_to_manip_rec(13); recording_index++;}
-};
-document.getElementById("merge").onclick = pre_merge;
-document.getElementById("tb-merge").onclick = pre_merge;
+document.getElementById("merge").onclick = merge;
+document.getElementById("tb-merge").onclick = merge;
 function merge() {
 	var same_parents = true, same_type = true, same_type2 = true, same_text = true, 
 	single_factor = true, are_fracs = true, same_term = true;
@@ -1629,13 +1656,12 @@ function merge() {
 		current_index++;
 		prepare(new_math_str);
 	}
+	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(13);}
 }
 
 //unbracket
-document.getElementById("unbracket").onclick = function() {
-	unbracket();
-	if (recording) {add_to_manip_rec(9); recording_index++;}
-};
+document.getElementById("unbracket").onclick = unbracket;
 function unbracket() {
 	//animation?
 	var new_term="";
@@ -1643,15 +1669,13 @@ function unbracket() {
 	new_math_str = replace_in_mtstr(selected_nodes, new_term);
 	current_index++;
 	prepare(new_math_str);
+	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(9);}
 }
 
 //evaulate simple sum or multiplication
-function pre_eval() {
-	eval();
-	if (recording) {add_to_manip_rec(3); recording_index++;}
-};
-document.getElementById("eval").onclick = pre_eval;
-document.getElementById("tb-eval").onclick = pre_eval;
+document.getElementById("eval").onclick = eval;
+document.getElementById("tb-eval").onclick = eval;
 function eval() {
 	for (var i=0; i<selected_nodes.length-1; i++) { //making sure, all elements are of the same parent
 		if (selected_nodes[i].parent !== selected_nodes[i+1].parent) {return;}
@@ -1663,15 +1687,13 @@ function eval() {
 		current_index++;
 		prepare(new_math_str);
 	});
+	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(3);}
 }
 
 //operate with an operator
-function pre_operate() {
-	operate();
-	if (recording) {add_to_manip_rec(14); recording_index++;}
-};
-document.getElementById("operate").onclick = pre_operate;
-document.getElementById("tb-operate").onclick = pre_operate;
+document.getElementById("operate").onclick = operate;
+document.getElementById("tb-operate").onclick = operate;
 function operate() {
 	if (selected_nodes.length === 1 && selected_nodes[0].type2 === "diff") {
 		var variable = selected_nodes[0].children[0].text;
@@ -1692,6 +1714,8 @@ function operate() {
 	} else {
 		return;
 	}
+	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(14);}
 }
 
 //Append something to both sides
@@ -1699,7 +1723,6 @@ $("#add_both_sides").keyup(function (e) {
     if (e.keyCode == 13) {
     	var thing = $("#add_both_sides").get()[0].value;
         add_both_sides(thing);
-		if (recording) {add_to_manip_rec(7, thing); recording_index++;}
     }
 });
 function add_both_sides(thing) {
@@ -1707,6 +1730,8 @@ function add_both_sides(thing) {
 	new_math_str = math_HS[0] + thing + "=" +math_HS[1] + thing;
 	current_index++;
 	prepare(new_math_str);
+	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(7, thing);}
 }
 
 //replace something
@@ -1714,7 +1739,6 @@ $("#replace").keyup(function (e) {
     if (e.keyCode == 13) {
     	var thing = $("#replace").get()[0].value;
         replace(thing);
-		if (recording) {add_to_manip_rec(10, thing); recording_index++;}
     }
 });
 function replace(text) {
@@ -1735,13 +1759,12 @@ function replace(text) {
   		current_index++;
 		prepare(new_math_str);
   	});
+  	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(10, text);}
 }
 
 //remove something. Used for: cancelling something on both sides, or cancelling something on a fraction, among other things
-document.getElementById("remove").onclick = function() {
-	remove();
-	if (recording) {add_to_manip_rec(11); recording_index++;}
-};
+document.getElementById("remove").onclick = remove;
 function remove() {
 	$selected.animate({"font-size": 0, opacity: 0}, step_duration)
     .css('overflow', 'visible')
@@ -1751,15 +1774,13 @@ function remove() {
   		current_index++;
 		prepare(new_math_str);
   	});
+  	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(11);}
 }
 
 //flip equation
-function pre_flip_equation() {
-	flip_equation();
-	if (recording) {add_to_manip_rec(15); recording_index++;}
-};
-document.getElementById("flip_equation").onclick = pre_flip_equation;
-document.getElementById("tb-flip_equation").onclick = pre_flip_equation;
+document.getElementById("flip_equation").onclick = flip_equation;
+document.getElementById("tb-flip_equation").onclick = flip_equation;
 function flip_equation() {
 	var offset1 = tot_width($equals.prevAll(), true, false) + tot_width($equals, true, false);
 	var offset2 = tot_width($equals.nextAll(), true, false) + tot_width($equals, true, false);
@@ -1772,4 +1793,6 @@ function flip_equation() {
 		current_index++;
 		prepare(new_math_str);
 	});
+	if (recording || playing) {recording_index++;}
+	if (recording) {add_to_manip_rec(15);}
 }

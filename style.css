@@ -120,3 +120,7 @@
  }
 
 }
+
+.playing {
+	border-color: blue;
+}
