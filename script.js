@@ -232,7 +232,7 @@ document.getElementById("redo").onclick = redo;
 function redo() {
 	if (current_index < math_str.length-1) {
 		if (recording_index < math_str_rec.length-1) {recording_index++;}
-		select_in_history(current_index++);
+		select_in_history(current_index+1);
 	}
 }
 
@@ -699,7 +699,12 @@ function parse_poly(root, poly, parent_id, is_container) {
 			factor.type2 = "normal";
 			if (!thing.is(":has(*)")) {
 				factor.text = thing.text();
-				if (factor.text === "−") {factor.text = "-";}
+				if (factor.text === "−") {
+					factor.type = "op";
+					factor.text = "-";
+				} else if (factor.text === "+") {
+					factor.type = "op";
+					factor.text = "-";}
 			}
 			factor_text = factor.text;
 			term.addChild(factor);
@@ -973,13 +978,47 @@ function change_side() {
 				prepare(new_math_str);
 			});
 		}
-	} else if ((selected_nodes[0].parent.type === "nominator" 
-			|| selected_nodes[0].type === "factor" 
-			|| selected_nodes[0].type === "nominator") 
-			&& (($selected.prevAll(".mrel").length !== 0 
+	} else if (selected_nodes[0].parent === math_root 
+		&& selected_nodes[0].type === "op" 
+		&& selected_nodes.length === 1 
+		&& selected_nodes[0].model.id === "0/1" && (($selected.prevAll(".mrel").length !== 0 
 					&& get_prev([math_root.children[math_root.children.length-1]]).children[0].type === "rel")
 				|| ($selected.prevAll(".mrel").length === 0 
-					&& get_next([math_root.children[0]]).children[0].type === "rel"))) { //factors
+					&& get_next([math_root.children[0]]).children[0].type === "rel"))) { //operator (sign) should check it's actually a sign.
+		var selected_width = tot_width($selected, true, true);
+		if ($selected.prevAll(".mrel").length === 0) { //before eq sign
+			offset = (end_of_equation.left-selected_position.left);
+			$selected.first().prevAll().animate({left:selected_width}, step_duration);
+			$selected = $(".selected").add($(".selected").filter(".mop").children());
+			$selected.animate({left:offset}, step_duration).promise().done(function() {
+				var RHS_terms = math_root.children.slice(equals_node.model.id.split("/")[1]);
+				new_term = change_sign(RHS_terms);
+				new_math_str = replace_in_mtstr(selected_nodes, "")+new_term;
+				current_index++;
+				prepare(new_math_str);
+			});
+
+		} else { //after eq sign
+			offset = (equals_position.left-selected_position.left)-tot_width($selected, true, false);
+			$selected.prevAll(".mrel").first().prevAll().animate({left:-selected_width}, step_duration);
+			$selected.last().nextAll().animate({left:-tot_width($selected, true, false)}, step_duration);
+			$selected = $(".selected").add($(".selected").filter(".mop").children());
+			$selected.animate({left:offset}, step_duration).promise().done(function() {
+				$selected = $(".selected").add($(".selected").find("*"));
+				new_term = change_sign(selected_nodes);
+				new_math_str = replace_in_mtstr(selected_nodes, "");
+				new_math_str = new_math_str.replace("=", new_term+"=");
+				current_index++;
+				prepare(new_math_str);
+			});
+		}
+	} else if ((selected_nodes[0].parent.type === "nominator" 
+		|| selected_nodes[0].type === "factor" 
+		|| selected_nodes[0].type === "nominator") 
+		&& (($selected.prevAll(".mrel").length !== 0 
+				&& get_prev([math_root.children[math_root.children.length-1]]).children[0].type === "rel")
+			|| ($selected.prevAll(".mrel").length === 0 
+				&& get_next([math_root.children[0]]).children[0].type === "rel"))) { //factors
 		if (selected_nodes[0].model.id.split("/")[1] < equals_node.model.id.split("/")[1]) { //before eq sign
 			RHS_width = tot_width($equals.nextAll(), false, false);
 			var after_eq = false, after_eq_nodes=[];
@@ -1257,12 +1296,8 @@ function move_down() {
 	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same parent
 		if (selected_nodes[i].parent !== selected_nodes[i+1].parent) {same_parents = false}
 	}
-	if ($selected.prev().filter(".mrel").length === 0 
-		&& selected_nodes[0].type === "factor" 
-		&& selected_nodes[0].parent.parent.parent.type2 === "frac"
-		&& same_parents
-		&& selected_nodes[0].parent.parent.children.length === 1) {
-		var denominator = selected_nodes[0].parent.parent.parent.children[1];
+	if (selected_nodes[0].type === "factor" 
+		&& same_parents) {
 		var new_denom_text = "";
 		for (var i=0; i<selected_nodes.length; i++) {
 			switch (selected_nodes[i].type2) {
@@ -1279,23 +1314,51 @@ function move_down() {
 					new_denom_text+=selected_nodes[i].text + "^{-1}";
 			}
 		}
-		if (denominator.children.length === 1) {
-			new_denom_text+=denominator.text;
+		if (selected_nodes[0].parent.parent.parent
+		&& selected_nodes[0].parent.parent.parent.type2 === "frac"
+		&& selected_nodes[0].parent.parent.children.length === 1) {
+			var denominator = selected_nodes[0].parent.parent.parent.children[1];
+			if (denominator.children.length === 1) {
+				new_denom_text+=denominator.text;
+			} else {
+				new_denom_text+="(" + denominator.text + ")";
+			}
+			var selected_width = tot_width($selected, true, false);
+			var extra_selected_width = tot_width(math_root.first(function(node) {return node.type2 === "normal"}).model.obj, true, false)*1;
+			var h_offset = $selected.offset().left - denominator.model.obj.offset().left + selected_width/2 + extra_selected_width/2;
+			var v_offset = $selected.outerHeight()*1.5;
+			denominator.model.obj.animate({left:selected_width/2+extra_selected_width/2}, step_duration);
+			$selected.last().nextAll().animate({left:-selected_width-extra_selected_width/2}, step_duration);
+			$selected.first().prevAll().animate({left:-extra_selected_width/2}, step_duration);
+			$selected.animate({left:-h_offset, top:v_offset}, step_duration).promise().done(function() {
+				new_math_str = replace_in_mtstr([denominator].concat(selected_nodes), new_denom_text);
+				current_index++;
+				prepare(new_math_str);
+			});
 		} else {
-			new_denom_text+="(" + denominator.text + ")";
+			var selected_width = tot_width($selected, true, false);
+			var extra_selected_width = tot_width(math_root.first(function(node) {return node.type2 === "normal"}).model.obj, true, false)*1;
+			var h_offset = selected_width/2 + extra_selected_width/2;
+			var v_offset = $selected.outerHeight()*1.5;
+			$selected.last().nextAll().animate({left:-selected_width-extra_selected_width/2}, step_duration);
+			$selected.first().prevAll().animate({left:-extra_selected_width/2}, step_duration);
+			$selected.animate({left:-h_offset, top:v_offset}, step_duration).promise().done(function() {
+				new_nom_text = "";
+				var begin_i = (selected_nodes[0].parent.children[0].type === "op") ? 1 : 0;
+				for (var i = begin_i; i <selected_nodes[0].parent.children.length; i++) {
+					for (var k = selected_nodes.length - 1; k >= 0; k--) {
+						if (selected_nodes[0].parent.children[i].model.id !== selected_nodes[k].model.id) {
+							new_nom_text+=selected_nodes[0].parent.children[i].text;
+						}
+					};
+				};
+				new_text = "\\frac{"+new_nom_text+"}{"+new_denom_text+"}";
+				new_math_str = replace_in_mtstr(selected_nodes[0].parent.children.slice(begin_i), new_text);
+				current_index++;
+				prepare(new_math_str);
+			});
+
 		}
-		var selected_width = tot_width($selected, true, false);
-		var extra_selected_width = tot_width(math_root.first(function(node) {return node.type2 === "normal"}).model.obj, true, false)*1;
-		var h_offset = $selected.offset().left - denominator.model.obj.offset().left + selected_width/2 + extra_selected_width/2;
-		var v_offset = $selected.outerHeight()*1.5;
-		denominator.model.obj.animate({left:selected_width/2+extra_selected_width/2}, step_duration);
-		$selected.last().nextAll().animate({left:-selected_width-extra_selected_width/2}, step_duration);
-		$selected.first().prevAll().animate({left:-extra_selected_width/2}, step_duration);
-		$selected.animate({left:-h_offset, top:v_offset}, step_duration).promise().done(function() {
-			new_math_str = replace_in_mtstr([denominator].concat(selected_nodes), new_denom_text);
-			current_index++;
-			prepare(new_math_str);
-		});
 	}
 	if (recording || playing) {recording_index++;}
 	if (recording) {add_to_manip_rec(6);}
