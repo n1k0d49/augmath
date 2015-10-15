@@ -973,6 +973,34 @@ function change_side() {
 				prepare(new_math_str);
 			});
 		}
+	else if (selected_nodes[0].parent === math_root) { //terms
+		var selected_width = tot_width($selected, true, true);
+		if ($selected.prevAll(".mrel").length === 0) { //before eq sign
+			offset = (end_of_equation.left-selected_position.left);
+			$selected.first().prevAll().animate({left:selected_width}, step_duration);
+			$selected = $(".selected").add($(".selected").filter(".mop").children());
+			$selected.animate({left:offset}, step_duration).promise().done(function() {
+				$selected = $(".selected").add($(".selected").find("*"));
+				new_term = change_sign(selected_nodes);
+				new_math_str = replace_in_mtstr(selected_nodes, "")+new_term;
+				current_index++;
+				prepare(new_math_str);
+			});
+
+		} else { //after eq sign
+			offset = (equals_position.left-selected_position.left)-tot_width($selected, true, false);
+			$selected.prevAll(".mrel").first().prevAll().animate({left:-selected_width}, step_duration);
+			$selected.last().nextAll().animate({left:-tot_width($selected, true, false)}, step_duration);
+			$selected = $(".selected").add($(".selected").filter(".mop").children());
+			$selected.animate({left:offset}, step_duration).promise().done(function() {
+				$selected = $(".selected").add($(".selected").find("*"));
+				new_term = change_sign(selected_nodes);
+				new_math_str = replace_in_mtstr(selected_nodes, "");
+				new_math_str = new_math_str.replace("=", new_term+"=");
+				current_index++;
+				prepare(new_math_str);
+			});
+		}
 	} else if ((selected_nodes[0].parent.type === "nominator" 
 			|| selected_nodes[0].type === "factor" 
 			|| selected_nodes[0].type === "nominator") 
