@@ -1791,13 +1791,16 @@ function operate() {
 //Append something to both sides
 $("#add_both_sides").keyup(function (e) {
     if (e.keyCode == 13) {
-    	var thing = $("#add_both_sides").get()[0].value;
-        add_both_sides(thing);
+	console.log("hi");
+    	var thing1 = $("#add_both_sides").get()[0].value;
+        	add_both_sides(thing1);
     }
 });
 function add_both_sides(thing) {
-	math_HS = new_math_str.split("=");
+	console.log("ho");
+	math_HS = math_str[current_index].split("=");
 	new_math_str = math_HS[0] + thing + "=" +math_HS[1] + thing;
+	console.log(new_math_str);
 	current_index++;
 	prepare(new_math_str);
 	if (recording || playing) {recording_index++;}
