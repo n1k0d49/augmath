@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="bower_components/jquery-ui/themes/smoothness/jquery-ui.css">
 <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.css">
 <link rel="stylesheet" href="bower_components/katex/dist/katex.min.css">
+<link rel="stylesheet" type="text/css" href="bower_components/mathquill.css/index.css">
 <link rel="stylesheet" href="style.css">
 
 </head>
@@ -206,7 +207,8 @@
 			</div>
 		</div>
 		<div class="row">
-			<p id="MathInput">Input some algebraic equation: <input size="50" onchange="prepare(this.value)"/>
+			<p id="MathInput">Input some equation (<a id="show_latex">show LaTeX</a>): <span id="MathQuill" class="mathquill-editable">...</span>
+			<input size="50"/>
 			<button type="button" class="btn btn-default" id="keep">
 					Keep
 			</button>
@@ -260,12 +262,13 @@
     	  heightStyle: "content"
     	});
   	});
-	</script>
-	<script>
- 		$(function() {
- 		  $( "#tabs" ).tabs();
- 		});
-	</script>
+</script>
+<script>
+ 	$(function() {
+ 	  $( "#tabs" ).tabs();
+ 	});
+</script>
+<script src="/bower_components/mathquill.js/index.js"></script>
 <!-- the library -->
 <script src="script.js"></script>
 

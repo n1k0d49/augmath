@@ -1,4 +1,14 @@
-//Probably a good addition would be to add MathQuill (http://mathquill.com/) for math input
+/*
+                      __  __       _   _     
+     /\              |  \/  |     | | | |    
+    /  \  _   _  __ _| \  / | __ _| |_| |__  
+   / /\ \| | | |/ _` | |\/| |/ _` | __| '_ \ 
+  / ____ \ |_| | (_| | |  | | (_| | |_| | | |
+ /_/    \_\__,_|\__, |_|  |_|\__,_|\__|_| |_|
+                 __/ |                       
+                |___/       
+Augmenting how we *do* maths using Computers
+*/
 
 //GLOBAL VARIABLES
 var h_eq_shift=0, 
@@ -42,6 +52,23 @@ var h_eq_shift=0,
     }    
 })(jQuery);
 
+//MATH INPUT
+var math_str_el = $("#MathInput input");
+$("#MathQuill").keyup(function (e) {
+    if (e.keyCode == 13) {
+        prepare($("#MathQuill").mathquill('latex').replace(/[^\x00-\x7F]/g, ""));
+    }
+});
+$("#MathQuill").on("focusout", function () {math_str_el.val($("#MathQuill").mathquill('latex').replace(/[^\x00-\x7F]/g, ""))});
+math_str_el.on("change", function () {$("#MathQuill").mathquill('latex', math_str_el.get()[0].value)});
+math_str_el.hide();
+$("#show_latex").on("click", function () {math_str_el.toggle(); math_str_el.is(":visible") ? $("#show_latex").text("Hide LaTeX") : $("#show_latex").text("Show LaTeX")});
+math_str_el.keyup(function (e) {
+    if (e.keyCode == 13) {
+        prepare(math_str_el.get()[0].value);
+    }
+});
+
 //SELECTION control
 var manip_el = $("#manip"), depth_el = $("#depth");
 manip_el.on("change", function () {
@@ -75,12 +102,6 @@ depth_el.on("change", function () {remove_events(manip, depth); depth = parseInt
 $("#multi_select").on("click", function () {multi_select = document.getElementById("multi_select").checked;});
 $("#replace_ind").on("click", function () {replace_ind = document.getElementById("replace_ind").checked;});
 $("#var_select").on("click", function () {var_select = document.getElementById("var_select").checked; if (var_select) {multi_select = false;}});
-var math_str_el = $("#MathInput input");
-math_str_el.keyup(function (e) {
-    if (e.keyCode == 13) {
-        prepare(math_str_el.get()[0].value);
-    }
-});
 
 //RECORD/PLAY control
 $("#recording").on("click", function () {
@@ -393,7 +414,7 @@ function latex_to_ascii(str) {
 function eval_expression(expression) {
 	var new_term;
 	expression = latex_to_ascii(expression)
-	if (expression.search(/[a-z]/) > -1) { //doesn't work with some expressions, as usual
+	if (expression.search(/[a-z\(\)]/) > -1) { //doesn't work with some expressions, as usual
 		try {
 			new_term = CQ(expression).simplify().toLaTeX().replace("\\cdot", ""); //removing cdot format
 		}
@@ -876,6 +897,7 @@ function prepare(math) {
 	var math_el = document.getElementById("math");
 	katex.render(math, math_el, { displayMode: true });
 	math_str_el.val(math);
+	$("#MathQuill").mathquill('latex', math);
 
 	var root_poly = $("#math .base");
 
