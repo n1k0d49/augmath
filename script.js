@@ -56,10 +56,10 @@ var h_eq_shift=0,
 var math_str_el = $("#MathInput input");
 $("#MathQuill").keyup(function (e) {
     if (e.keyCode == 13) {
-        prepare($("#MathQuill").mathquill('latex').replace(/[^\x00-\x7F]/g, ""));
+        prepare($("#MathQuill").mathquill('latex').replace(/[^\x00-\x7F]/g, "").replace(/\^([a-z0-9])/g, "^{$1}"));
     }
 });
-$("#MathQuill").on("focusout", function () {math_str_el.val($("#MathQuill").mathquill('latex').replace(/[^\x00-\x7F]/g, ""))});
+$("#MathQuill").on("focusout", function () {math_str_el.val($("#MathQuill").mathquill('latex').replace(/[^\x00-\x7F]/g, "").replace(/\^([a-z0-9])/g, "^{$1}"))});
 math_str_el.on("change", function () {$("#MathQuill").mathquill('latex', math_str_el.get()[0].value)});
 math_str_el.hide();
 $("#show_latex").on("click", function () {math_str_el.toggle(); math_str_el.is(":visible") ? $("#show_latex").text("Hide LaTeX") : $("#show_latex").text("Show LaTeX")});
@@ -102,6 +102,63 @@ depth_el.on("change", function () {remove_events(manip, depth); depth = parseInt
 $("#multi_select").on("click", function () {multi_select = document.getElementById("multi_select").checked;});
 $("#replace_ind").on("click", function () {replace_ind = document.getElementById("replace_ind").checked;});
 $("#var_select").on("click", function () {var_select = document.getElementById("var_select").checked; if (var_select) {multi_select = false;}});
+$(document).on( "keyup", function (e) {
+    if (e.keyCode == 39) { //right
+    	var index = parseInt(selected_nodes[0].model.id.split("/")[selected_nodes[0].model.id.split("/").length-1]); //no +1 because the tree index is 1 based not 0 based
+        var new_node = selected_nodes[0].parent.children[index] || undefined;
+        if (new_node) {select_node(new_node);}
+    }
+});
+$(document).on( "keyup", function (e) { //left
+    if (e.keyCode == 37) {
+    	if (selected_nodes) {
+    		var index = parseInt(selected_nodes[0].model.id.split("/")[selected_nodes[0].model.id.split("/").length-1])-2;
+        	var new_node = selected_nodes[0].parent.children[index] || undefined;
+        	if (new_node) {select_node(new_node);}
+        }
+    }
+});
+$(document).on( "keyup", function (e) { //down
+    if (e.keyCode == 40) {
+    	if (selected_nodes) {
+    		if (selected_nodes[0].children.length > 0) {
+    			var new_node = selected_nodes[0].children[0];
+        		manip = new_node.type;
+    			manip_el.val(manip);
+    			depth++;
+    			depth_el.val(depth);
+    			remove_events(manip, depth); 
+				create_events(manip, depth);
+				select_node(new_node);
+    		}
+    	}
+    }
+});
+$(document).on( "keyup", function (e) { //up
+    if (e.keyCode == 38) {
+    	if (selected_nodes) {
+    		if (selected_nodes[0].parent !== math_root) {
+    			var new_node = selected_nodes[0].parent;
+        		manip = new_node.type;
+    			manip_el.val(manip);
+    			depth--;
+    			depth_el.val(depth);
+    			remove_events(manip, depth); 
+				create_events(manip, depth);
+    			select_node(new_node);
+    		}
+    	}
+    }
+});
+//to prevent event bubbling when in input
+$('input').on('keyup', function (e) {
+    if(!e.ctrlKey && !e.altKey && !e.metaKey) {
+        if(e.keyCode==37 || e.keyCode==39 || e.keyCode==40 || e.keyCode==38) {
+            e.stopPropagation();
+        }
+    }
+    return true;
+});
 
 //RECORD/PLAY control
 $("#recording").on("click", function () {
@@ -315,6 +372,39 @@ function remove_events(type, depth) {
 	$selectable.off();
 }
 
+function select_node(node) {
+	$this = node.model.obj;
+	$this.toggleClass("selected");
+	node.selected = !node.selected;
+	if (!multi_select) {
+		math_root.walk(function (node2) {
+			if (node2 !== node) {node2.selected = false;}
+		});
+		$(".base *").filter(".selected").not($this).toggleClass("selected");
+	}
+	if (var_select) {
+		math_root.walk(function (node2) {
+			if (node.selected && !node2.selected && node2.text === node.text) {
+				node2.selected = true;
+				node2.model.obj.toggleClass("selected");
+			}
+		});
+	}
+	selected_nodes = [];
+	selected_text = "";
+	math_root.walk(function (node) {
+		if (node.selected) {selected_nodes.push(node); selected_text += node.text;}
+	});
+	if (var_select) {
+		selected_text = node.text;
+	}
+	$selected = $(".selected");
+	selected_width = tot_width($selected, true);
+	selected_position = $selected.offset();
+	var replace_el = document.getElementById("replace");
+	replace_el.value = selected_text;
+}
+
 function create_events(type, depth) {
 	var  index;
 	//reset stuff
@@ -327,39 +417,7 @@ function create_events(type, depth) {
 
 	math_root.walk(function (node) {
 		if (node.model.id !== "0" && node.type === type && getIndicesOf("/", node.model.id).length === depth) {
-	    	node.model.obj.on("click", function() {
-	    		$this = node.model.obj;
-	    		$this.toggleClass("selected");
-	    		node.selected = !node.selected;
-	    		if (!multi_select) {
-	    			math_root.walk(function (node2) {
-						if (node2 !== node) {node2.selected = false;}
-					});
-	    			$(".base *").filter(".selected").not($this).toggleClass("selected");
-	    		}
-	    		if (var_select) {
-					math_root.walk(function (node2) {
-						if (node.selected && !node2.selected && node2.text === node.text) {
-							node2.selected = true;
-							node2.model.obj.toggleClass("selected");
-						}
-					});
-				}
-	    		selected_nodes = [];
-	    		selected_text = "";
-	    		math_root.walk(function (node) {
-					if (node.selected) {selected_nodes.push(node); selected_text += node.text;}
-				});
-				if (var_select) {
-					selected_text = node.text;
-				}
-				equals_position = $equals.offset();
-				$selected = $(".selected");
-				selected_width = tot_width($selected, true);
-				selected_position = $selected.offset();
-				var replace_el = document.getElementById("replace");
-				replace_el.value = selected_text;
-	    	})
+	    	node.model.obj.on("click", function() {select_node(node);});
 	    }
 	});
 }
@@ -734,35 +792,36 @@ function parse_poly(root, poly, parent_id, is_container) {
 			i++;
 		} else if (thing.is(".mbin, .mrel")) { //begin new term
 			term.model.obj = term_obj;
-			term_cnt++;
 			poly_str+=term.text;
+			term_cnt++;
 			factor_cnt = 0;
+			factor_id = parent_id.toString() + "/" + (term_cnt+1).toString() + "/" + (factor_cnt+1).toString();
 			term_id = parent_id.toString() + "/" + (term_cnt+1).toString();
 			op = tree.parse({id: factor_id, obj: thing});
 			term = tree.parse({id: term_id});
+			root.addChild(term);
 			term_obj = $();
 			term.text = "";
 			factor_text = "";
 			term.type = "term";
 			if (thing.is(".mbin")) {
-				root.addChild(term);
 				term.addChild(op);
 				op.type = "factor";
 				op.type2 = "op";
 				op.text = (thing.text() === "−") ? "-" : "+"
 				term_obj = term_obj.add(thing);
 				term.text+=op.text;
+				factor_cnt++;
 			} else if (thing.is(".mrel")) {
-				term = tree.parse({id: term_id, obj: thing});
-				root.addChild(term);
+				term.model.obj = thing;
 				term.addChild(op);
 				op.type = "rel";
 				op.text = thing.text();
 				term.text+=op.text;
-				term_cnt++;
-				term.text+=op.text;
 				poly_str+=term.text;
+				term_cnt++;
 				factor_cnt = 0;
+				factor_id = parent_id.toString() + "/" + (term_cnt+1).toString() + "/" + (factor_cnt+1).toString();
 				term_id = parent_id.toString() + "/" + (term_cnt+1).toString();
 				term = tree.parse({id: term_id});
 				root.addChild(term);
