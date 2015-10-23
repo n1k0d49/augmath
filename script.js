@@ -56,16 +56,26 @@ var h_eq_shift=0,
 var math_str_el = $("#MathInput input");
 $("#MathQuill").keyup(function (e) {
     if (e.keyCode == 13) {
-        prepare($("#MathQuill").mathquill('latex').replace(/[^\x00-\x7F]/g, "").replace(/\^([a-z0-9])/g, "^{$1}"));
+        prepare($("#MathQuill").mathquill('latex').replace(/[^\x00-\x7F]/g, "")
+        	.replace(/\^([a-z0-9])/g, "^{$1}")
+        	.replace(/\\left/g, "")
+        	.replace(/\\right/g, ""));
     }
 });
-$("#MathQuill").on("focusout", function () {math_str_el.val($("#MathQuill").mathquill('latex').replace(/[^\x00-\x7F]/g, "").replace(/\^([a-z0-9])/g, "^{$1}"))});
+$("#MathQuill").on("focusout", function () {math_str_el.val($("#MathQuill").mathquill('latex').replace(/[^\x00-\x7F]/g, "")
+	.replace(/\^([a-z0-9])/g, "^{$1}")
+	.replace(/\\left/g, "")
+    .replace(/\\right/g, ""))});
 math_str_el.on("change", function () {$("#MathQuill").mathquill('latex', math_str_el.get()[0].value)});
 math_str_el.hide();
 $("#show_latex").on("click", function () {math_str_el.toggle(); math_str_el.is(":visible") ? $("#show_latex").text("Hide LaTeX") : $("#show_latex").text("Show LaTeX")});
 math_str_el.keyup(function (e) {
     if (e.keyCode == 13) {
+    	console.log("HI");
+        console.log(math_str_el.get()[0].value)
         prepare(math_str_el.get()[0].value);
+        console.log("HO");
+        console.log(math_str_el.get()[0].value)
     }
 });
 
@@ -519,6 +529,27 @@ function change_sign(nodes) {
 	return text;
 }
 
+//change sign of exponent of some nodes
+function change_exp_sign(nodes) {
+	var new_text="";
+	for (var i=0; i<nodes.length; i++) {
+		switch (nodes[i].type2) {
+			case "exp":
+				new_text+=nodes[i].children[0].text + "^{" + "-" + nodes[i].children[1].text + "}";
+				break;
+			case "group_exp":
+				new_text+="(" + nodes[i].children[0].text + ")" + "^{" + "-" + nodes[i].children[1].text + "}";
+				break;
+			case "frac":
+				new_text+="(" + nodes[i].text + ")" + "^{-1}";
+				break;
+			default:
+				new_text+=nodes[i].text + "^{-1}";
+		}
+	}
+	return new_text;
+}
+
 //get previous node
 function get_prev(nodes) {
 	var node = nodes[0];
@@ -834,7 +865,7 @@ function parse_poly(root, poly, parent_id, is_container) {
 
 		//deal with things with children, recursivelly.
 		if (factor_obj.is(":has(*)")) {
-			if (thing.is(".minner") || (thing.children(".mfrac").length !== 0 && thing.children(".mfrac").children(".vlist").children().length === 4)) {//fractions
+			if (thing.children(".mfrac").length !== 0 && thing.children(".mfrac").children(".vlist").children().length === 4) {//fractions. it had 'thing.is(".minner") ||''  in it but not sure why
 				if (thing.text().search(/^\\frac\{d\}\{d[a-z]\}$/) === 1) {
 					factor.type2 = "diff";
 					var variable = thing.closest_n_descendents(".mord", 2).first().children();
@@ -944,6 +975,7 @@ function parse_poly(root, poly, parent_id, is_container) {
 }
 //this function prepares and renders the function with LaTeX, it also calls parse_poly to create the tree
 function prepare(math) {
+	console.log(math);
 
 	math = math.replace(/\\frac{}/g, "\\frac{1}")
 				.replace(/=$/, "=0")
@@ -1372,32 +1404,14 @@ function move_up() {
 document.getElementById("move_down").onclick = move_down;
 document.getElementById("tb-move_down").onclick = move_down;
 function move_down() {
+	console.log("LEL");
 	var same_parents = true;
 	for (var i=0; i<selected_nodes.length-1; i++) {//making sure all elemnts are of the same parent
 		if (selected_nodes[i].parent !== selected_nodes[i+1].parent) {same_parents = false}
 	}
-	if (selected_nodes[0].type === "factor" 
-		&& same_parents) {
+	if (same_parents) {
 		var new_denom_text = "";
-		for (var i=0; i<selected_nodes.length; i++) {
-			switch (selected_nodes[i].type2) {
-				case "exp":
-					new_denom_text+=selected_nodes[i].children[0].text + "^{" + "-" + selected_nodes[i].children[1].text + "}";
-					break;
-				case "group_exp":
-					new_denom_text+="(" + selected_nodes[i].children[0].text + ")" + "^{" + "-" + selected_nodes[i].children[1].text + "}";
-					break;
-				case "frac":
-					new_denom_text+="(" + selected_nodes[i].text + ")" + "^{-1}";
-					break;
-				default:
-					new_denom_text+=selected_nodes[i].text + "^{-1}";
-			}
-		}
-		if (selected_nodes[0].parent.parent.parent
-		&& selected_nodes[0].parent.parent.parent.type2 === "frac"
-		&& selected_nodes[0].parent.parent.children.length === 1) {
-			var denominator = selected_nodes[0].parent.parent.parent.children[1];
+		function move_down_frac(denominator) {
 			if (denominator.children.length === 1) {
 				new_denom_text+=denominator.text;
 			} else {
@@ -1415,6 +1429,38 @@ function move_down() {
 				current_index++;
 				prepare(new_math_str);
 			});
+		}
+		if (selected_nodes[0].type === "factor" 
+		&& selected_nodes[0].parent.parent.parent
+		&& selected_nodes[0].parent.parent.parent.type2 === "frac"
+		&& selected_nodes[0].parent.parent.children.length === 1) { //selected factor
+			new_denom_text = change_exp_sign(selected_nodes);
+			var denominator = selected_nodes[0].parent.parent.parent.children[1];
+			move_down_frac(denominator)
+		} else if (selected_nodes[0].type === "term" 
+		&& selected_nodes.length === 1
+		&& selected_nodes[0].parent.parent
+		&& selected_nodes[0].parent.parent.type2 === "frac"
+		&& selected_nodes[0].parent.children.length === 1) {//selected term
+			if (selected_nodes[0].children.length === 1) {
+				new_denom_text = selected_nodes[0].text + "^{-1}";
+			} else {
+				new_denom_text = change_exp_sign(selected_nodes[0].children);
+			}
+;			var denominator = selected_nodes[0].parent.parent.children[1];
+			move_down_frac(denominator)
+		} else if (selected_nodes[0].type === "nominator" 
+		&& selected_nodes.length === 1
+		&& selected_nodes[0].parent
+		&& selected_nodes[0].parent.type2 === "frac"
+		&& selected_nodes[0].children.length === 1) {//selected nominator
+			if (selected_nodes[0].children.length === 1) {
+				new_denom_text = selected_nodes[0].text + "^{-1}";
+			} else {
+				new_denom_text = change_exp_sign(selected_nodes[0].children[0].children);
+			}
+			var denominator = selected_nodes[0].parent.children[1];
+			move_down_frac(denominator)
 		} else {
 			var selected_width = tot_width($selected, true, false);
 			var extra_selected_width = tot_width(math_root.first(function(node) {return node.type2 === "normal"}).model.obj, true, false)*1;
