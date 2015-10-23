@@ -430,6 +430,7 @@ function create_events(type, depth) {
 	    	node.model.obj.on("click", function() {select_node(node);});
 	    }
 	});
+	//Draggable.create(".mord", {type:"x,y", edgeResistance:0.65, throwProps:true});
 }
 //get all the indices of searchStr within str
 function getIndicesOf(searchStr, str) { //should fix the getIndicesOf to work with regexes
@@ -979,6 +980,7 @@ function prepare(math) {
 
 	math = math.replace(/\\frac{}/g, "\\frac{1}")
 				.replace(/=$/, "=0")
+				.replace(/=+/, "=")
 				.replace(/0\+/g, "")
 				.replace(/0-/g, "")
 				.replace(/^=/, "0=")
@@ -1447,7 +1449,7 @@ function move_down() {
 			} else {
 				new_denom_text = change_exp_sign(selected_nodes[0].children);
 			}
-;			var denominator = selected_nodes[0].parent.parent.children[1];
+			var denominator = selected_nodes[0].parent.parent.children[1];
 			move_down_frac(denominator)
 		} else if (selected_nodes[0].type === "nominator" 
 		&& selected_nodes.length === 1
