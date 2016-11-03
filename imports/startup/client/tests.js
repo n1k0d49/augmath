@@ -1,13 +1,15 @@
 import {change_side, move_right, move_left, move_up, move_down, split, merge, distribute_in, collect_out, unbracket, evaluate, operate, add_both_sides, replace, remove, cancel_out, flip_equation} from "../../../imports/maths/manipulations.js";
-import {prepare, select_node} from "../../maths/functions";
+import {select_node} from "../../maths/functions";
 import Bro from 'brototype'
 import {symbols} from '../../maths/symbols.js';
-
 
 //Oh man tests do really rock
 
 function test_manip(assert, manip, math_str_init, math_str_exp, node_ids) {
   prepare(math_str_init);
+
+  let var_select=false;
+  let multi_select;
 
   if (node_ids.length > 1) {multi_select=true;}
 
@@ -15,7 +17,7 @@ function test_manip(assert, manip, math_str_init, math_str_exp, node_ids) {
     var node = math_root.first(function (node) {
       return node.model.id === node_ids[i];
     });
-    select_node(node);
+    select_node(node, multi_select, var_select);
   }
   console.log("node_ids", node_ids);
   step_duration=0; //is doing this ok?
@@ -27,7 +29,7 @@ function test_manip(assert, manip, math_str_init, math_str_exp, node_ids) {
   //   assert.equal(math_str_el.val(), "bx+ax^{2}+c=0");
   //   done();
   // }, 10);
-  assert.equal(math_str_el.val(), math_str_exp);
+  assert.equal($("#MathInput input").val(), math_str_exp);
 }
 
 $( document ).ready(function() {
@@ -103,7 +105,7 @@ $( document ).ready(function() {
 
   QUnit.test("manipulations.move_right", function( assert ) {
     //Move term right
-    test_manip(assert, move_right, "ax^{2}+bx+c=0", "bx+ax^{2}+c=0",  ["0/1"]);
+    test_manip(assert, move_right, "ax^{2}+bx_{c}+c=0", "bx_{c}+ax^{2}+c=0",  ["0/1"]);
     //Move normal factor right
     test_manip(assert, move_right, "ax^{2}+bx+c=0", "x^{2}a+bx+c=0",  ["0/1/1"]);
     //Move numerical factor right
@@ -145,7 +147,7 @@ $( document ).ready(function() {
 
   QUnit.test("manipulations.collect_out", function( assert ) {
     //BASIC FACTOR OUT
-    test_manip(assert, collect_out, "ax+ay", "a(x+y)",  ["0/1/1", "0/2/2"]);
+    test_manip(assert, collect_out, "ax_{c}+ay_{dd}", "a(x_{c}+y_{dd})",  ["0/1/1", "0/2/2"]);
 
     //FACTOR OUT with one one-factor term
     test_manip(assert, collect_out, "p+\\frac{ac}{a+c}p=1", "p(1+\\frac{ac}{a+c})=1",  ["0/1/1", "0/2/3"]);
@@ -189,6 +191,8 @@ $( document ).ready(function() {
     //BASIC DISTRIBUTE IN
     test_manip(assert, distribute_in, "a(x+y)", "ax+ay",  ["0/1/1", "0/1/2"]);
 
+    test_manip(assert, distribute_in, "(x-3)^{2}-(x+2)3x+x+2", "(x-3)^{2}-(x3x+x3\\cdot 2)+x+2",  ["0/2/4", "0/2/3", "0/2/2"]);
+
     //DISTRIBUTE IN with one one-factor term
     test_manip(assert, distribute_in, "p(1+\\frac{ac}{a+c})=1", "p+p\\frac{ac}{a+c}=1", ["0/1/1", "0/1/2"]);
 
@@ -207,8 +211,9 @@ $( document ).ready(function() {
   });
 
   QUnit.test("manipulations.merge", function( assert ) {
-    //Merge factors into fraction
+    //Merge fractions into fraction
     test_manip(assert, merge, "ac\\frac{a}{b}\\frac{cd\\sqrt{k}}{xx}", "ac\\frac{acd\\sqrt{k}}{bxx}",  ["0/1/3", "0/1/4"]);
+    test_manip(assert, merge, "x^{4}\\frac{1}{4}\\frac{1}{z^{2}}", "x^{4}\\frac{1\\cdot1}{4z^{2}}",  ["0/1/2", "0/1/3"]);
   });
 
   QUnit.test("manipulations.split", function( assert ) {
@@ -219,6 +224,11 @@ $( document ).ready(function() {
   QUnit.test("manipulations.evaluate", function( assert ) {
     //merge two exponentials
     test_manip(assert, evaluate, "a^{-1}a^{-1}", "a^{-2}",  ["0/1/1", "0/1/2"]);
+
+    //merge two terms
+    test_manip(assert, evaluate, "x^{2}-3x^{2}+9-6x-6x+x+2", "-2 x^{2}+9-6x-6x+x+2",  ["0/2", "0/1"]);
+    test_manip(assert, evaluate, "-2x^{2}+9-12x+x+2", "-2x^{2}+9-11 x+2",  ["0/3", "0/4"]);
+    test_manip(assert, evaluate, "-2x^{2}+9-11 x+2", "-2x^{2}+11-11x",  ["0/2", "0/4"]);
   });
 
   QUnit.test("manipulations.cancel_out", function( assert ) {
